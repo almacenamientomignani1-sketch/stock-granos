@@ -21,13 +21,13 @@
 
   // ▼▼▼ REEMPLAZÁ ESTOS VALORES CON LOS DE TU PROYECTO FIREBASE ▼▼▼
   const firebaseConfig = {
-     apiKey: "AIzaSyC9cCrO4Git9aEEe0CtMQcvJHuiI1x0K7w",
-  authDomain: "stock-granos-campo.firebaseapp.com",
-  databaseURL: "https://stock-granos-campo-default-rtdb.firebaseio.com",
-  projectId: "stock-granos-campo",
-  storageBucket: "stock-granos-campo.firebasestorage.app",
-  messagingSenderId: "400354753690",
-  appId: "1:400354753690:web:af47783da480723917b323"
+    apiKey:            "TU_API_KEY",
+    authDomain:        "TU_PROYECTO.firebaseapp.com",
+    databaseURL:       "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+    projectId:         "TU_PROYECTO",
+    storageBucket:     "TU_PROYECTO.appspot.com",
+    messagingSenderId: "TU_SENDER_ID",
+    appId:             "TU_APP_ID"
   };
   // ▲▲▲ FIN DE CONFIGURACIÓN ▲▲▲
 
@@ -626,9 +626,99 @@
   .foto-thumb:hover { transform:scale(1.05); }
   .foto-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:9999; display:flex; align-items:center; justify-content:center; cursor:pointer; }
   .foto-modal-img { max-width:90vw; max-height:85vh; border-radius:8px; object-fit:contain; }
+
+  /* ── LOGIN ──────────────────────────────────────────────────── */
+  #login-screen {
+    position: fixed; inset: 0;
+    background: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 99999;
+    font-family: var(--sans);
+  }
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 40px 36px;
+    width: 100%; max-width: 360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    text-align: center;
+  }
+  .login-icon {
+    width: 52px; height: 52px;
+    background: var(--green);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+  }
+  .login-icon svg { width: 28px; height: 28px; fill: white; }
+  .login-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .login-sub   { font-size: 13px; color: var(--text3); margin-bottom: 28px; }
+  .login-field {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--text);
+    background: white;
+    text-align: center;
+    letter-spacing: 3px;
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+  }
+  .login-field:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(45,106,79,0.12); }
+  .login-field.error { border-color: var(--red); background: var(--red-bg); animation: shake 0.35s; }
+  .login-btn {
+    width: 100%; padding: 11px;
+    background: var(--green); color: white;
+    border: none; border-radius: var(--radius);
+    font-family: var(--sans); font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s;
+    margin-bottom: 10px;
+  }
+  .login-btn:hover { background: #236040; }
+  .login-error {
+    font-size: 12px; color: var(--red);
+    background: var(--red-bg);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    display: none;
+  }
+  .login-hint { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    25%{transform:translateX(-6px)}
+    75%{transform:translateX(6px)}
+  }
 </style>
 </head>
 <body>
+
+<!-- ══ PANTALLA DE LOGIN ══════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+    </div>
+    <div class="login-title">Stock de Granos</div>
+    <div class="login-sub">Ingresá la contraseña para continuar</div>
+    <input
+      type="password"
+      id="login-input"
+      class="login-field"
+      placeholder="••••••••"
+      onkeydown="if(event.key==='Enter') verificarPassword()"
+      autocomplete="current-password"
+    >
+    <div class="login-error" id="login-error">❌ Contraseña incorrecta. Intentá de nuevo.</div>
+    <button class="login-btn" onclick="verificarPassword()">Ingresar →</button>
+    <div class="login-hint">Gestión de campo · Campaña 25/26</div>
+  </div>
+</div>
+<!-- ════════════════════════════════════════════════════════════════ -->
 
 <div class="layout">
   <!-- SIDEBAR -->
@@ -3721,6 +3811,41 @@ function renderHistorial() {
   }).join('');
 }
 
+// ── LOGIN ──────────────────────────────────────────────────────────
+// ▼ CAMBIÁ ESTA CONTRASEÑA POR LA QUE QUIERAS ▼
+const PASSWORD_ACCESO = 'campo2526';
+// ▲ ─────────────────────────────────────────── ▲
+
+function verificarPassword() {
+  const input = document.getElementById('login-input');
+  const errorEl = document.getElementById('login-error');
+  const ingresada = input.value;
+
+  if (ingresada === PASSWORD_ACCESO) {
+    // Guardar sesión por 8 horas en localStorage
+    const expira = Date.now() + (8 * 60 * 60 * 1000);
+    localStorage.setItem('sg_sesion', expira);
+    document.getElementById('login-screen').style.display = 'none';
+  } else {
+    input.classList.add('error');
+    errorEl.style.display = 'block';
+    input.value = '';
+    setTimeout(() => input.classList.remove('error'), 400);
+    input.focus();
+  }
+}
+
+function verificarSesion() {
+  const expira = parseInt(localStorage.getItem('sg_sesion') || '0');
+  if (Date.now() < expira) {
+    // Sesión válida → ocultar pantalla de login directamente
+    document.getElementById('login-screen').style.display = 'none';
+  } else {
+    // Sesión vencida → mostrar login y enfocar el campo
+    setTimeout(() => document.getElementById('login-input').focus(), 100);
+  }
+}
+
 // ─── INIT ────────────────────────────────────────────────────────
 // Verificar si Firebase fue configurado (valores por defecto = no configurado)
 window.addEventListener('load', () => {
@@ -3730,6 +3855,9 @@ window.addEventListener('load', () => {
     }
   }, 2000);
 });
+
+// Verificar sesión activa antes de mostrar el sistema
+verificarSesion();
 
 cargarEstado();
 poblarFiltros();
