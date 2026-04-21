@@ -693,6 +693,78 @@
     25%{transform:translateX(-6px)}
     75%{transform:translateX(6px)}
   }
+
+  /* ── INGRESO MODOS ──────────────────────────────────────────────── */
+  .modo-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:22px; }
+  .modo-tab {
+    padding:10px 24px; border:none; background:none;
+    font-size:13px; color:var(--text3); cursor:pointer;
+    font-family:var(--sans); font-weight:500; transition:all .15s;
+  }
+  .modo-tab.active { color:var(--green); border-bottom:2px solid var(--green); margin-bottom:-2px; font-weight:600; }
+  .modo-tab:hover:not(.active) { color:var(--text); background:var(--bg2); }
+
+  /* ── BÚSQUEDA BOLSÓN ────────────────────────────────────────────── */
+  .busq-tab { font-size:12px !important; padding:6px 14px !important; }
+  .busq-tab.active { background:var(--green) !important; color:#fff !important; border-color:var(--green) !important; }
+
+  /* ── FOTO PREVIEW GRID ──────────────────────────────────────────── */
+  .foto-preview-grid { display:flex; gap:8px; flex-wrap:wrap; }
+  .foto-item-wrap { position:relative; display:inline-block; }
+  .foto-item-del {
+    position:absolute; top:-5px; right:-5px;
+    width:18px; height:18px;
+    background:var(--red); color:#fff; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; cursor:pointer;
+    box-shadow:0 1px 4px rgba(0,0,0,.25);
+    line-height:1;
+  }
+  .foto-add-btn {
+    width:62px; height:62px;
+    border:2px dashed var(--border2); border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--text3); font-size:24px;
+    transition:all .15s; flex-shrink:0;
+  }
+  .foto-add-btn:hover { border-color:var(--green); color:var(--green); background:var(--green-light); }
+
+  /* ── CARGAS MODAL ───────────────────────────────────────────────── */
+  .cargas-modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.55);
+    z-index:9998; display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .cargas-modal {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-lg); width:100%; max-width:660px;
+    max-height:82vh; display:flex; flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);
+  }
+  .cargas-modal-header {
+    padding:16px 20px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    flex-shrink:0;
+  }
+  .cargas-modal-body { padding:16px 20px; overflow-y:auto; flex:1; }
+  .cargas-modal-close {
+    background:none; border:none; font-size:22px; cursor:pointer;
+    color:var(--text3); line-height:1; padding:0 4px;
+  }
+  .cargas-modal-close:hover { color:var(--text); }
+
+  .carga-item {
+    background:var(--bg2); border:1px solid var(--border);
+    border-radius:var(--radius); padding:12px 14px; margin-bottom:10px;
+  }
+  .carga-item:last-child { margin-bottom:0; }
+  .carga-item-top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .carga-item-kg { font-size:16px; font-weight:700; font-family:var(--mono); color:var(--green); }
+  .carga-item-fecha { font-size:12px; color:var(--text3); margin-top:2px; }
+  .carga-item-obs { font-size:12px; color:var(--text2); margin-top:6px; font-style:italic; }
+  .carga-item-fotos { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .carga-item-num { font-size:11px; font-weight:600; color:var(--text3);
+    text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
 </style>
 </head>
 <body>
@@ -846,7 +918,7 @@
       </div>
       <div class="card">
         <table>
-          <thead><tr><th>#</th><th>Campo</th><th>Inquilino</th><th>Lote</th><th>Grano</th><th>Ingresado</th><th>Egresado</th><th>Stock</th><th>%</th></tr></thead>
+          <thead><tr><th>#</th><th>Campo</th><th>Inquilino</th><th>Lote</th><th>Grano</th><th>Cosecha</th><th>Ingresado</th><th>Egresado</th><th>Stock</th><th>%</th><th></th></tr></thead>
           <tbody id="tbody-bolsones"></tbody>
         </table>
       </div>
@@ -857,51 +929,177 @@
       <div class="topbar">
         <div>
           <div class="page-title">Registrar ingreso</div>
-          <div class="page-sub">Nuevo bolsón de granos</div>
+          <div class="page-sub">Crear nuevo bolsón o agregar kilos a uno existente</div>
         </div>
       </div>
       <div class="card">
         <div class="card-body">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Inquilino</label>
-              <select id="ing-inquilino" onchange="filtrarCampos('ing')">
-                <option value="">— Seleccionar —</option>
-                <option value="JAVIER">JAVIER</option>
-                <option value="JAM&JAM">JAM&JAM</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Campo</label>
-              <select id="ing-campo" onchange="actualizarLotes('ing')"><option value="">— Seleccionar —</option></select>
-            </div>
+
+          <!-- TABS DE MODO -->
+          <div class="modo-tabs">
+            <button class="modo-tab active" onclick="switchModoIngreso('nuevo',this)">🌾 Nuevo bolsón</button>
+            <button class="modo-tab" onclick="switchModoIngreso('agregar',this)">➕ Agregar kilos a existente</button>
           </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Lote</label>
-              <select id="ing-lote"><option value="">— Seleccionar —</option></select>
+
+          <!-- ══ PANEL: NUEVO BOLSÓN ══════════════════════════════ -->
+          <div id="panel-nuevo">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Inquilino</label>
+                <select id="ing-inquilino" onchange="filtrarCampos('ing')">
+                  <option value="">— Seleccionar —</option>
+                  <option value="JAVIER">JAVIER</option>
+                  <option value="JAM&JAM">JAM&JAM</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Campo</label>
+                <select id="ing-campo" onchange="actualizarLotes('ing')"><option value="">— Seleccionar —</option></select>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Tipo de grano</label>
-              <select id="ing-grano">
-                <option value="">— Seleccionar —</option>
-                <option value="Soja">Soja</option><option value="Maíz">Maíz</option>
-                <option value="Trigo">Trigo</option><option value="Sorgo">Sorgo</option>
-              </select>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Lote</label>
+                <select id="ing-lote"><option value="">— Seleccionar —</option></select>
+              </div>
+              <div class="form-group">
+                <label>Tipo de grano</label>
+                <select id="ing-grano">
+                  <option value="">— Seleccionar —</option>
+                  <option value="Soja">Soja</option><option value="Maíz">Maíz</option>
+                  <option value="Trigo">Trigo</option><option value="Sorgo">Sorgo</option>
+                </select>
+              </div>
             </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Kilos (primera carga)</label>
+                <input type="number" id="ing-kilos" placeholder="Ej: 28500" min="0">
+              </div>
+              <div class="form-group">
+                <label>Cosecha</label>
+                <input type="text" id="ing-cosecha" placeholder="Ej: 25/26" maxlength="10">
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Fecha</label>
+                <input type="date" id="ing-fecha">
+              </div>
+              <div class="form-group">
+                <label>Observaciones (opcional)</label>
+                <input type="text" id="ing-obs" placeholder="Ej: Cosecha lote norte">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:16px">
+              <label>Fotos del comprobante (opcional)</label>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
+                <div class="foto-add-btn" onclick="document.getElementById('ing-fotos-input').click()" title="Agregar fotos">+</div>
+                <div class="foto-preview-grid" id="ing-fotos-preview"></div>
+              </div>
+              <input type="file" id="ing-fotos-input" accept="image/*" multiple style="display:none"
+                onchange="agregarFotosIngreso(this,'ing-fotos-preview','_ingFotos')">
+              <div style="font-size:11px;color:var(--text3);margin-top:5px">Podés adjuntar una o varias fotos de la descarga de la tolva</div>
+            </div>
+            <div id="ing-alert"></div>
+            <button class="btn btn-green" onclick="registrarIngreso()">Crear bolsón</button>
           </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Kilos</label>
-              <input type="number" id="ing-kilos" placeholder="Ej: 28500" min="0">
+
+          <!-- ══ PANEL: AGREGAR KILOS ══════════════════════════════ -->
+          <div id="panel-agregar" style="display:none">
+
+            <!-- BÚSQUEDA -->
+            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:16px">
+              <div class="section-label" style="margin-bottom:10px">Buscar bolsón</div>
+              <div style="display:flex;gap:8px;margin-bottom:14px">
+                <button class="btn btn-outline busq-tab active" id="btab-id" onclick="switchBusqueda('id')">Por N° bolsón</button>
+                <button class="btn btn-outline busq-tab" id="btab-filtro" onclick="switchBusqueda('filtro')">Por campo / lote</button>
+              </div>
+
+              <!-- Buscar por ID -->
+              <div id="busq-id-panel">
+                <div class="form-group" style="max-width:200px">
+                  <label>N° de bolsón</label>
+                  <input type="number" id="busq-id-input" placeholder="Ej: 5" min="1"
+                    oninput="buscarBolsonPorId(this.value)">
+                </div>
+              </div>
+
+              <!-- Buscar por filtro -->
+              <div id="busq-filtro-panel" style="display:none">
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Inquilino</label>
+                    <select id="badd-inquilino" onchange="filtrarCampos('badd');buscarBolsonPorFiltro()">
+                      <option value="">— Todos —</option>
+                      <option value="JAVIER">JAVIER</option>
+                      <option value="JAM&JAM">JAM&JAM</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Campo</label>
+                    <select id="badd-campo" onchange="actualizarLotes('badd');buscarBolsonPorFiltro()">
+                      <option value="">— Todos —</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Lote</label>
+                    <select id="badd-lote" onchange="buscarBolsonPorFiltro()"><option value="">— Todos —</option></select>
+                  </div>
+                  <div class="form-group">
+                    <label>Grano</label>
+                    <select id="badd-grano" onchange="buscarBolsonPorFiltro()">
+                      <option value="">— Todos —</option>
+                      <option value="Soja">Soja</option><option value="Maíz">Maíz</option>
+                      <option value="Trigo">Trigo</option><option value="Sorgo">Sorgo</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Resultados -->
+              <div id="busq-resultados" style="margin-top:12px"></div>
             </div>
-            <div class="form-group">
-              <label>Observaciones (opcional)</label>
-              <input type="text" id="ing-obs" placeholder="Ej: Cosecha lote norte">
+
+            <!-- FORMULARIO CARGA PARCIAL -->
+            <div id="carga-parcial-form" style="display:none">
+              <div style="background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius-lg);padding:13px 16px;margin-bottom:16px">
+                <div style="font-size:11px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Bolsón seleccionado</div>
+                <div id="carga-bolson-info" style="font-size:13px;color:var(--text);line-height:1.5"></div>
+              </div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Kilos a agregar</label>
+                  <input type="number" id="carga-kilos" placeholder="Ej: 15000" min="1">
+                </div>
+                <div class="form-group">
+                  <label>Fecha de descarga</label>
+                  <input type="date" id="carga-fecha">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:14px">
+                <label>Observaciones (opcional)</label>
+                <input type="text" id="carga-obs" placeholder="Ej: Descarga tolva norte, tarde">
+              </div>
+              <div class="form-group" style="margin-bottom:16px">
+                <label>Fotos del comprobante (opcional)</label>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
+                  <div class="foto-add-btn" onclick="document.getElementById('carga-fotos-input').click()" title="Agregar fotos">+</div>
+                  <div class="foto-preview-grid" id="carga-fotos-preview"></div>
+                </div>
+                <input type="file" id="carga-fotos-input" accept="image/*" multiple style="display:none"
+                  onchange="agregarFotosIngreso(this,'carga-fotos-preview','_cargaFotos')">
+                <div style="font-size:11px;color:var(--text3);margin-top:5px">Podés adjuntar fotos de la descarga de la tolva al bolsón</div>
+              </div>
+              <div id="carga-alert"></div>
+              <button class="btn btn-green" onclick="agregarKilosExistente()">➕ Agregar kilos al bolsón</button>
             </div>
+
           </div>
-          <div id="ing-alert"></div>
-          <button class="btn btn-green" onclick="registrarIngreso()">Registrar ingreso</button>
+          <!-- FIN panel-agregar -->
+
         </div>
       </div>
     </div>
@@ -1565,6 +1763,13 @@ let camiones = {}, camionActual = null, mesActualCam = null;
 // cisterna: { lotes:[{id,fecha,litros_total,litros_disp,precio_litro,proveedor,remito}], movimientos:[...] }
 let cisterna = { lotes: [], movimientos: [] };
 
+// Fotos de ingreso (arrays temporales, se resetean al guardar)
+const _fotosReg = {
+  _ingFotos:   [],   // fotos del modo "nuevo bolsón"
+  _cargaFotos: []    // fotos del modo "agregar kilos"
+};
+let _bolsonParaCarga = null; // id del bolsón seleccionado para carga parcial
+
 // ─── PDF.JS CONFIG ────────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -1807,20 +2012,22 @@ function poblarFiltros() {
 function filtrarCampos(prefix) {
   const inq = document.getElementById(prefix+'-inquilino').value;
   const sel = document.getElementById(prefix+'-campo');
-  sel.innerHTML = '<option value="">— Seleccionar —</option>';
+  sel.innerHTML = '<option value="">— ' + (prefix==='badd'?'Todos':'Seleccionar') + ' —</option>';
   Object.keys(CAMPOS).forEach(c => {
     if (!inq || CAMPOS[c].inquilino === inq) {
       const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
     }
   });
-  document.getElementById(prefix+'-lote').innerHTML = '<option value="">— Seleccionar —</option>';
+  const loteEl = document.getElementById(prefix+'-lote');
+  if (loteEl) loteEl.innerHTML = '<option value="">— ' + (prefix==='badd'?'Todos':'Seleccionar') + ' —</option>';
   if (prefix === 'egr') { bolsonSeleccionado = null; document.getElementById('bolson-wrap').style.display = 'none'; }
 }
 
 function actualizarLotes(prefix) {
   const campo = document.getElementById(prefix+'-campo').value;
   const sel = document.getElementById(prefix+'-lote');
-  sel.innerHTML = '<option value="">— Seleccionar —</option>';
+  const placeholder = prefix === 'badd' ? '— Todos —' : '— Seleccionar —';
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
   if (campo && CAMPOS[campo]) {
     CAMPOS[campo].lotes.forEach(l => {
       const o = document.createElement('option'); o.value = l; o.textContent = 'Lote ' + l; sel.appendChild(o);
@@ -1927,19 +2134,273 @@ function registrarIngreso() {
   const lote = document.getElementById('ing-lote').value;
   const grano = document.getElementById('ing-grano').value;
   const kilos = parseFloat(document.getElementById('ing-kilos').value);
-  const obs = document.getElementById('ing-obs').value;
+  const cosecha = document.getElementById('ing-cosecha').value.trim();
+  const obs = document.getElementById('ing-obs').value.trim();
+  const fechaEl = document.getElementById('ing-fecha');
+  const fecha = fechaEl.value || new Date().toISOString().split('T')[0];
   const alertEl = document.getElementById('ing-alert');
+
   if (!inquilino || !campo || !lote || !grano || !kilos || kilos <= 0) {
     alertEl.innerHTML = '<div class="alert alert-danger">Completá todos los campos requeridos.</div>'; return;
   }
-  const b = { id: nextBolson++, inquilino, campo, lote: parseInt(lote), grano, ingresado: kilos, egresado: 0, obs, fecha: new Date().toISOString().split('T')[0] };
+
+  // Primera carga parcial
+  const primeraCarga = { fecha, kilos, obs, fotos: [..._fotosReg._ingFotos] };
+
+  const b = {
+    id: nextBolson++, inquilino, campo, lote: parseInt(lote), grano,
+    ingresado: kilos, egresado: 0, obs, cosecha, fecha,
+    cargas: [primeraCarga]
+  };
   bolsones.push(b);
-  movimientos.push({ fecha: b.fecha, tipo: 'ingreso', inquilino, campo, lote: parseInt(lote), grano, kg: kilos, ref: obs || 'Ingreso manual', bolsonId: b.id });
+  movimientos.push({
+    fecha, tipo: 'ingreso', inquilino, campo, lote: parseInt(lote),
+    grano, kg: kilos, ref: obs || 'Ingreso manual', bolsonId: b.id
+  });
+
   guardarEstado();
-  alertEl.innerHTML = `<div class="alert alert-success">Bolsón #${b.id} registrado: ${kilos.toLocaleString('es-AR')} kg de ${grano} — ${campo} Lote ${lote} (${inquilino})</div>`;
-  ['ing-inquilino','ing-campo','ing-grano','ing-obs'].forEach(id => document.getElementById(id).value = '');
+  alertEl.innerHTML = `<div class="alert alert-success">✅ Bolsón #${b.id} creado: ${kilos.toLocaleString('es-AR')} kg de ${grano} — ${campo} Lote ${lote} (${inquilino})${cosecha ? ' · Cosecha ' + cosecha : ''}</div>`;
+
+  // Reset form
+  ['ing-inquilino','ing-campo','ing-grano','ing-obs','ing-cosecha'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('ing-lote').innerHTML = '<option value="">— Seleccionar —</option>';
   document.getElementById('ing-kilos').value = '';
+  document.getElementById('ing-fecha').value = '';
+  document.getElementById('ing-fotos-preview').innerHTML = '';
+  _fotosReg._ingFotos = [];
+  renderDashboard(); renderBolsones();
+}
+
+// ─── NUEVO: MODOS INGRESO ────────────────────────────────────────
+function switchModoIngreso(mode, btn) {
+  document.querySelectorAll('.modo-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-nuevo').style.display   = mode === 'nuevo'   ? 'block' : 'none';
+  document.getElementById('panel-agregar').style.display = mode === 'agregar' ? 'block' : 'none';
+}
+
+function switchBusqueda(mode) {
+  document.querySelectorAll('.busq-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('btab-' + mode).classList.add('active');
+  document.getElementById('busq-id-panel').style.display     = mode === 'id'     ? 'block' : 'none';
+  document.getElementById('busq-filtro-panel').style.display = mode === 'filtro' ? 'block' : 'none';
+  document.getElementById('busq-resultados').innerHTML = '';
+  document.getElementById('carga-parcial-form').style.display = 'none';
+  _bolsonParaCarga = null;
+}
+
+// ─── BÚSQUEDA DE BOLSONES ─────────────────────────────────────────
+function buscarBolsonPorId(val) {
+  const id = parseInt(val);
+  const cont = document.getElementById('busq-resultados');
+  if (!id || id <= 0) {
+    cont.innerHTML = '';
+    document.getElementById('carga-parcial-form').style.display = 'none';
+    return;
+  }
+  const b = bolsones.find(x => x.id === id);
+  if (!b) {
+    cont.innerHTML = '<div class="no-bolsones">No se encontró el bolsón #' + id + '</div>';
+    document.getElementById('carga-parcial-form').style.display = 'none';
+    return;
+  }
+  cont.innerHTML = renderBolsonBuscado(b);
+}
+
+function buscarBolsonPorFiltro() {
+  const inq   = document.getElementById('badd-inquilino').value;
+  const campo = document.getElementById('badd-campo').value;
+  const lote  = document.getElementById('badd-lote').value;
+  const grano = document.getElementById('badd-grano').value;
+  const cont  = document.getElementById('busq-resultados');
+  const lista = bolsones.filter(b =>
+    (!inq   || b.inquilino === inq) &&
+    (!campo || b.campo === campo)   &&
+    (!lote  || b.lote === parseInt(lote)) &&
+    (!grano || b.grano === grano)
+  );
+  if (!lista.length) {
+    cont.innerHTML = '<div class="no-bolsones">Sin bolsones para esa combinación</div>';
+    document.getElementById('carga-parcial-form').style.display = 'none';
+    return;
+  }
+  cont.innerHTML = '<div class="section-label" style="margin-bottom:8px">Seleccioná el bolsón</div>' +
+    lista.map(b => renderBolsonBuscado(b)).join('');
+}
+
+function renderBolsonBuscado(b) {
+  const s  = b.ingresado - b.egresado;
+  const tc = 'tag-' + b.grano.toLowerCase().replace('í','i').replace('ó','o');
+  const pct = b.ingresado > 0 ? Math.round((s / b.ingresado) * 100) : 0;
+  return `<div class="bolson-card" id="bc-add-${b.id}" onclick="seleccionarBolsonParaCarga(${b.id})" style="margin-bottom:8px">
+    <div class="bolson-left">
+      <div class="bolson-title">Bolsón #${b.id} — Lote ${b.lote} · ${b.campo}</div>
+      <div class="bolson-meta">${b.inquilino}${b.cosecha?' · Cosecha '+b.cosecha:''} · ${b.obs||'Sin observaciones'}</div>
+      <div class="progbar" style="margin-top:6px"><div class="progbar-fill" style="width:${pct}%"></div></div>
+    </div>
+    <div class="bolson-right">
+      <div class="bolson-kg">${s.toLocaleString('es-AR')} kg</div>
+      <div class="bolson-pct">${pct}% disponible</div>
+      <div style="margin-top:4px"><span class="tag ${tc}">${b.grano}</span></div>
+    </div>
+  </div>`;
+}
+
+function seleccionarBolsonParaCarga(id) {
+  _bolsonParaCarga = id;
+  document.querySelectorAll('[id^="bc-add-"]').forEach(c => c.classList.remove('selected'));
+  const el = document.getElementById('bc-add-' + id);
+  if (el) el.classList.add('selected');
+  const b = bolsones.find(x => x.id === id);
+  if (!b) return;
+  const s = b.ingresado - b.egresado;
+  document.getElementById('carga-bolson-info').innerHTML =
+    `<strong>Bolsón #${b.id}</strong> · <strong>${b.grano}</strong> · ${b.campo} Lote ${b.lote} · ${b.inquilino}` +
+    `<br><span style="font-size:12px;color:var(--text3)">Stock actual: <strong style="color:var(--green)">${s.toLocaleString('es-AR')} kg</strong> · Cosecha: ${b.cosecha||'—'} · ${b.obs||''}</span>`;
+  document.getElementById('carga-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('carga-kilos').value = '';
+  document.getElementById('carga-obs').value   = '';
+  document.getElementById('carga-alert').innerHTML = '';
+  document.getElementById('carga-fotos-preview').innerHTML = '';
+  _fotosReg._cargaFotos = [];
+  document.getElementById('carga-parcial-form').style.display = 'block';
+  document.getElementById('carga-parcial-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─── FOTOS DE INGRESO (múltiples) ─────────────────────────────────
+function agregarFotosIngreso(input, previewId, varName) {
+  const files = Array.from(input.files);
+  const preview = document.getElementById(previewId);
+  if (!_fotosReg[varName]) _fotosReg[varName] = [];
+
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxW = 1200;
+        const scale = Math.min(1, maxW / img.width);
+        canvas.width  = img.width  * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const b64 = canvas.toDataURL('image/jpeg', 0.75);
+        _fotosReg[varName].push(b64);
+        _renderFotosPreview(previewId, varName);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function _renderFotosPreview(previewId, varName) {
+  const preview = document.getElementById(previewId);
+  if (!preview) return;
+  preview.innerHTML = '';
+  (_fotosReg[varName] || []).forEach((b64, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'foto-item-wrap';
+    wrap.innerHTML = `<img src="${b64}" class="foto-thumb" onclick="verFoto('${b64}')" title="Ver foto completa">
+      <div class="foto-item-del" onclick="eliminarFotoIngreso('${varName}',${i},'${previewId}')">×</div>`;
+    preview.appendChild(wrap);
+  });
+}
+
+function eliminarFotoIngreso(varName, idx, previewId) {
+  if (_fotosReg[varName]) _fotosReg[varName].splice(idx, 1);
+  _renderFotosPreview(previewId, varName);
+}
+
+// ─── AGREGAR KILOS A BOLSÓN EXISTENTE ────────────────────────────
+function agregarKilosExistente() {
+  if (!_bolsonParaCarga) {
+    document.getElementById('carga-alert').innerHTML = '<div class="alert alert-danger">Seleccioná un bolsón primero.</div>'; return;
+  }
+  const b = bolsones.find(x => x.id === _bolsonParaCarga);
+  if (!b) { document.getElementById('carga-alert').innerHTML = '<div class="alert alert-danger">Bolsón no encontrado.</div>'; return; }
+
+  const kilos = parseFloat(document.getElementById('carga-kilos').value);
+  const fecha = document.getElementById('carga-fecha').value;
+  const obs   = document.getElementById('carga-obs').value.trim();
+  const alertEl = document.getElementById('carga-alert');
+
+  if (!kilos || kilos <= 0) { alertEl.innerHTML = '<div class="alert alert-danger">Ingresá una cantidad de kilos válida.</div>'; return; }
+  if (!fecha)               { alertEl.innerHTML = '<div class="alert alert-danger">Seleccioná la fecha de descarga.</div>'; return; }
+
+  // Agregar carga al array de cargas del bolsón
+  if (!b.cargas) b.cargas = [];
+  b.cargas.push({ fecha, kilos, obs, fotos: [...(_fotosReg._cargaFotos || [])] });
+  b.ingresado += kilos;
+
+  // Agregar al historial global de movimientos
+  movimientos.push({
+    fecha, tipo: 'ingreso', inquilino: b.inquilino, campo: b.campo,
+    lote: b.lote, grano: b.grano, kg: kilos,
+    ref: `Carga parcial · Bolsón #${b.id}${obs ? ' — ' + obs : ''}`,
+    bolsonId: b.id
+  });
+
+  guardarEstado();
+  alertEl.innerHTML = `<div class="alert alert-success">✅ Se agregaron ${kilos.toLocaleString('es-AR')} kg al Bolsón #${b.id}. Total ingresado: ${b.ingresado.toLocaleString('es-AR')} kg</div>`;
+
+  // Reset
+  _fotosReg._cargaFotos = []; _bolsonParaCarga = null;
+  document.getElementById('carga-fotos-preview').innerHTML = '';
+  document.getElementById('carga-kilos').value = '';
+  document.getElementById('carga-obs').value   = '';
+  document.getElementById('carga-parcial-form').style.display = 'none';
+  document.getElementById('busq-resultados').innerHTML = '';
+  const idInp = document.getElementById('busq-id-input');
+  if (idInp) idInp.value = '';
+  renderDashboard(); renderBolsones();
+}
+
+// ─── HISTORIAL DE CARGAS (modal) ─────────────────────────────────
+function verCargasDetalle(bolsonId) {
+  const b = bolsones.find(x => x.id === bolsonId);
+  if (!b) return;
+  const tc = 'tag-' + b.grano.toLowerCase().replace('í','i').replace('ó','o');
+
+  document.getElementById('cargas-modal-titulo').textContent = `Bolsón #${b.id} — ${b.grano} · ${b.campo} Lote ${b.lote}`;
+  document.getElementById('cargas-modal-sub').innerHTML =
+    `${b.inquilino}${b.cosecha?' · Cosecha '+b.cosecha:''} · Total ingresado: <strong>${b.ingresado.toLocaleString('es-AR')} kg</strong>`;
+
+  const cargas = b.cargas || [];
+  if (!cargas.length) {
+    document.getElementById('cargas-modal-body').innerHTML = '<div class="empty-state">Este bolsón no tiene cargas registradas.</div>';
+  } else {
+    document.getElementById('cargas-modal-body').innerHTML = cargas.map((c, i) => {
+      const fd = c.fecha ? c.fecha.split('-').reverse().join('/') : '—';
+      const fotosHtml = (c.fotos && c.fotos.length)
+        ? `<div class="carga-item-fotos">${c.fotos.map(f =>
+            `<img src="${f}" class="foto-thumb" onclick="verFoto('${f}')" title="Ver foto">`
+          ).join('')}</div>`
+        : '';
+      return `<div class="carga-item">
+        <div class="carga-item-num">Carga ${i + 1} de ${cargas.length}</div>
+        <div class="carga-item-top">
+          <div>
+            <div class="carga-item-kg">+${c.kilos.toLocaleString('es-AR')} kg</div>
+            <div class="carga-item-fecha">📅 ${fd}</div>
+            ${c.obs ? `<div class="carga-item-obs">"${c.obs}"</div>` : ''}
+          </div>
+          ${c.fotos && c.fotos.length ? `<div style="font-size:11px;color:var(--text3)">📷 ${c.fotos.length} foto${c.fotos.length>1?'s':''}</div>` : ''}
+        </div>
+        ${fotosHtml}
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('cargas-modal-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function cerrarCargasModal(e) {
+  if (e && e.target !== document.getElementById('cargas-modal-overlay')) return;
+  document.getElementById('cargas-modal-overlay').style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 function registrarEgreso() {
@@ -2029,11 +2490,34 @@ function renderDashboard() {
 
 function renderBolsones() {
   const tbody = document.getElementById('tbody-bolsones');
-  if (!bolsones.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">No hay bolsones registrados aún</div></td></tr>'; return; }
+  if (!bolsones.length) { tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state">No hay bolsones registrados aún</div></td></tr>'; return; }
   tbody.innerHTML = bolsones.map(b => {
-    const s=b.ingresado-b.egresado; const pct=Math.round((s/b.ingresado)*100);
+    const s=b.ingresado-b.egresado; const pct=b.ingresado>0?Math.round((s/b.ingresado)*100):0;
     const tc='tag-'+b.grano.toLowerCase().replace('í','i').replace('ó','o');
-    return `<tr><td class="num" style="color:var(--text3)">#${b.id}</td><td><span class="badge-campo">${b.campo}</span></td><td><span class="badge-inq">${b.inquilino}</span></td><td class="num">${b.lote}</td><td><span class="tag ${tc}">${b.grano}</span></td><td class="num">${b.ingresado.toLocaleString('es-AR')}</td><td class="num">${b.egresado>0?b.egresado.toLocaleString('es-AR'):'—'}</td><td class="num" style="font-weight:600">${s.toLocaleString('es-AR')}</td><td><div style="font-size:11px;color:var(--text3);margin-bottom:3px">${pct}%</div><div class="progbar" style="width:80px"><div class="progbar-fill" style="width:${pct}%"></div></div></td></tr>`;
+    const nCargas = b.cargas ? b.cargas.length : (b.ingresado>0?1:0);
+    const nFotos  = b.cargas ? b.cargas.reduce((a,c)=>a+(c.fotos?c.fotos.length:0),0) : 0;
+    return `<tr>
+      <td class="num" style="color:var(--text3)">#${b.id}</td>
+      <td><span class="badge-campo">${b.campo}</span></td>
+      <td><span class="badge-inq">${b.inquilino}</span></td>
+      <td class="num">${b.lote}</td>
+      <td><span class="tag ${tc}">${b.grano}</span></td>
+      <td class="num" style="color:var(--text3)">${b.cosecha||'—'}</td>
+      <td class="num">${b.ingresado.toLocaleString('es-AR')}</td>
+      <td class="num">${b.egresado>0?b.egresado.toLocaleString('es-AR'):'—'}</td>
+      <td class="num" style="font-weight:600">${s.toLocaleString('es-AR')}</td>
+      <td>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px">${pct}%</div>
+        <div class="progbar" style="width:80px"><div class="progbar-fill" style="width:${pct}%"></div></div>
+      </td>
+      <td>
+        <button onclick="verCargasDetalle(${b.id})"
+          style="padding:4px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg2);
+                 font-size:11px;cursor:pointer;color:var(--text2);font-family:var(--sans);white-space:nowrap">
+          📦 ${nCargas} carga${nCargas!==1?'s':''}${nFotos>0?' · 📷'+nFotos:''}
+        </button>
+      </td>
+    </tr>`;
   }).join('');
 }
 
@@ -3864,5 +4348,22 @@ poblarFiltros();
 renderDashboard();
 renderEstructura();
 </script>
+<!-- ══ MODAL HISTORIAL DE CARGAS ══════════════════════════════════ -->
+<div id="cargas-modal-overlay" class="cargas-modal-overlay" style="display:none" onclick="cerrarCargasModal(event)">
+  <div class="cargas-modal" onclick="event.stopPropagation()">
+    <div class="cargas-modal-header">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--text)" id="cargas-modal-titulo">Historial de cargas</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px" id="cargas-modal-sub"></div>
+      </div>
+      <button class="cargas-modal-close" onclick="cerrarCargasModal()">×</button>
+    </div>
+    <div class="cargas-modal-body" id="cargas-modal-body">
+      <div class="empty-state">Sin cargas registradas.</div>
+    </div>
+  </div>
+</div>
+<!-- ════════════════════════════════════════════════════════════════ -->
+
 </body>
 </html>
