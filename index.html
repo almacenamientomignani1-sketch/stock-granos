@@ -21,13 +21,13 @@
 
   // ▼▼▼ REEMPLAZÁ ESTOS VALORES CON LOS DE TU PROYECTO FIREBASE ▼▼▼
   const firebaseConfig = {
-   apiKey: "AIzaSyC9cCrO4Git9aEEe0CtMQcvJHuiI1x0K7w",
-  authDomain: "stock-granos-campo.firebaseapp.com",
-  databaseURL: "https://stock-granos-campo-default-rtdb.firebaseio.com",
-  projectId: "stock-granos-campo",
-  storageBucket: "stock-granos-campo.firebasestorage.app",
-  messagingSenderId: "400354753690",
-  appId: "1:400354753690:web:af47783da480723917b323" 
+    apiKey:            "TU_API_KEY",
+    authDomain:        "TU_PROYECTO.firebaseapp.com",
+    databaseURL:       "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+    projectId:         "TU_PROYECTO",
+    storageBucket:     "TU_PROYECTO.appspot.com",
+    messagingSenderId: "TU_SENDER_ID",
+    appId:             "TU_APP_ID"
   };
   // ▲▲▲ FIN DE CONFIGURACIÓN ▲▲▲
 
@@ -765,6 +765,65 @@
   .carga-item-fotos { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   .carga-item-num { font-size:11px; font-weight:600; color:var(--text3);
     text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+
+  /* ── BOTONES DE ACCIÓN EN TABLAS ────────────────────────────────── */
+  .accion-btn {
+    padding:3px 8px; border-radius:var(--radius);
+    font-size:11px; font-family:var(--sans); cursor:pointer;
+    border:1px solid; transition:all .12s; white-space:nowrap;
+  }
+  .accion-edit { color:var(--blue); border-color:#BFDBFE; background:#EFF6FF; }
+  .accion-edit:hover { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .accion-del  { color:var(--red);  border-color:#FECACA; background:#FFF5F5; }
+  .accion-del:hover  { background:var(--red);  color:#fff; border-color:var(--red);  }
+
+  /* ── CONFIRM INLINE ─────────────────────────────────────────────── */
+  .confirm-inline {
+    display:inline-flex; gap:4px; align-items:center;
+    background:var(--red-bg); border:1px solid #FECACA;
+    border-radius:var(--radius); padding:3px 6px;
+  }
+  .confirm-inline span { font-size:11px; color:var(--red); font-weight:500; }
+  .confirm-inline button {
+    font-size:10px; padding:2px 7px; border-radius:3px;
+    border:none; cursor:pointer; font-family:var(--sans); font-weight:600;
+  }
+  .confirm-si  { background:var(--red); color:#fff; }
+  .confirm-no  { background:var(--bg3); color:var(--text2); }
+
+  /* ── MODAL EDITAR EGRESO ────────────────────────────────────────── */
+  .edit-modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.55);
+    z-index:9997; display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .edit-modal {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-lg); width:100%; max-width:680px;
+    max-height:88vh; display:flex; flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);
+  }
+  .edit-modal-header {
+    padding:16px 20px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+  }
+  .edit-modal-body { padding:20px; overflow-y:auto; flex:1; }
+  .edit-modal-footer {
+    padding:14px 20px; border-top:1px solid var(--border);
+    display:flex; gap:10px; justify-content:flex-end; flex-shrink:0;
+  }
+  .edit-modal-close {
+    background:none; border:none; font-size:22px; cursor:pointer;
+    color:var(--text3); line-height:1; padding:0 4px;
+  }
+  .edit-modal-close:hover { color:var(--text); }
+  .edit-section-title {
+    font-size:11px; font-weight:600; color:var(--text3);
+    text-transform:uppercase; letter-spacing:.06em;
+    margin:18px 0 10px; padding-bottom:6px;
+    border-bottom:1px solid var(--border);
+  }
+  .edit-section-title:first-child { margin-top:0; }
 </style>
 </head>
 <body>
@@ -1229,7 +1288,7 @@
       </div>
       <div class="card">
         <table>
-          <thead><tr><th>Fecha</th><th>Tipo</th><th>Inquilino</th><th>Campo</th><th>Lote</th><th>Grano</th><th>Kg</th><th>Referencia</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Inquilino</th><th>Campo</th><th>Lote</th><th>Grano</th><th>Kg</th><th>Referencia</th><th style="width:110px">Acciones</th></tr></thead>
           <tbody id="tbody-movimientos"></tbody>
         </table>
       </div>
@@ -1757,6 +1816,7 @@ const CAMPOS = {
 };
 
 let bolsones = [], movimientos = [], nextBolson = 1, bolsonSeleccionado = null;
+let nextMovId = 1;
 let acopios = {}, ultimaCPE = null, acopioActual = null;
 let choferes = {}, choferActual = null, mesActualFletes = null, pctSueldo = 18;
 let camiones = {}, camionActual = null, mesActualCam = null;
@@ -2154,6 +2214,7 @@ function registrarIngreso() {
   };
   bolsones.push(b);
   movimientos.push({
+    movId: nextMovId++,
     fecha, tipo: 'ingreso', inquilino, campo, lote: parseInt(lote),
     grano, kg: kilos, ref: obs || 'Ingreso manual', bolsonId: b.id
   });
@@ -2336,6 +2397,7 @@ function agregarKilosExistente() {
 
   // Agregar al historial global de movimientos
   movimientos.push({
+    movId: nextMovId++,
     fecha, tipo: 'ingreso', inquilino: b.inquilino, campo: b.campo,
     lote: b.lote, grano: b.grano, kg: kilos,
     ref: `Carga parcial · Bolsón #${b.id}${obs ? ' — ' + obs : ''}`,
@@ -2361,7 +2423,6 @@ function agregarKilosExistente() {
 function verCargasDetalle(bolsonId) {
   const b = bolsones.find(x => x.id === bolsonId);
   if (!b) return;
-  const tc = 'tag-' + b.grano.toLowerCase().replace('í','i').replace('ó','o');
 
   document.getElementById('cargas-modal-titulo').textContent = `Bolsón #${b.id} — ${b.grano} · ${b.campo} Lote ${b.lote}`;
   document.getElementById('cargas-modal-sub').innerHTML =
@@ -2378,7 +2439,7 @@ function verCargasDetalle(bolsonId) {
             `<img src="${f}" class="foto-thumb" onclick="verFoto('${f}')" title="Ver foto">`
           ).join('')}</div>`
         : '';
-      return `<div class="carga-item">
+      return `<div class="carga-item" id="carga-item-${bolsonId}-${i}">
         <div class="carga-item-num">Carga ${i + 1} de ${cargas.length}</div>
         <div class="carga-item-top">
           <div>
@@ -2386,8 +2447,15 @@ function verCargasDetalle(bolsonId) {
             <div class="carga-item-fecha">📅 ${fd}</div>
             ${c.obs ? `<div class="carga-item-obs">"${c.obs}"</div>` : ''}
           </div>
-          ${c.fotos && c.fotos.length ? `<div style="font-size:11px;color:var(--text3)">📷 ${c.fotos.length} foto${c.fotos.length>1?'s':''}</div>` : ''}
+          <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+            ${c.fotos && c.fotos.length ? `<div style="font-size:11px;color:var(--text3)">📷 ${c.fotos.length} foto${c.fotos.length>1?'s':''}</div>` : ''}
+            <div style="display:flex;gap:4px" id="carga-accs-${bolsonId}-${i}">
+              <button class="accion-btn accion-edit" onclick="abrirEditarCarga(${bolsonId},${i})">✏️</button>
+              <button class="accion-btn accion-del"  onclick="confirmarEliminarCarga(${bolsonId},${i})">🗑️</button>
+            </div>
+          </div>
         </div>
+        <div id="carga-edit-inline-${bolsonId}-${i}"></div>
         ${fotosHtml}
       </div>`;
     }).join('');
@@ -2395,6 +2463,334 @@ function verCargasDetalle(bolsonId) {
 
   document.getElementById('cargas-modal-overlay').style.display = 'flex';
   document.body.style.overflow = 'hidden';
+}
+
+// ─── ELIMINAR MOVIMIENTO ─────────────────────────────────────────
+function confirmarEliminarMov(movId) {
+  const cel = document.getElementById('accion-mov-' + movId);
+  if (!cel) return;
+  cel.innerHTML = `<div class="confirm-inline">
+    <span>¿Eliminar?</span>
+    <button class="confirm-si" onclick="eliminarMovimiento(${movId})">Sí</button>
+    <button class="confirm-no" onclick="renderMovimientos()">No</button>
+  </div>`;
+}
+
+// Fallback para movimientos viejos sin movId — usa índice real en el array
+function confirmarEliminarMovIdx(realIdx) {
+  const cel = document.getElementById('accion-mov-idx-' + realIdx);
+  if (!cel) return;
+  cel.innerHTML = `<div class="confirm-inline">
+    <span>¿Eliminar?</span>
+    <button class="confirm-si" onclick="eliminarMovimientoIdx(${realIdx})">Sí</button>
+    <button class="confirm-no" onclick="renderMovimientos()">No</button>
+  </div>`;
+}
+
+function eliminarMovimientoIdx(realIdx) {
+  if (realIdx < 0 || realIdx >= movimientos.length) { renderMovimientos(); return; }
+  const m = movimientos[realIdx];
+  _revertirMovEnBolson(m);
+  movimientos.splice(realIdx, 1);
+  guardarEstado(); renderMovimientos(); renderDashboard(); renderBolsones();
+  mostrarToast('🗑️ Movimiento eliminado');
+}
+
+function _revertirMovEnBolson(m) {
+  const b = bolsones.find(x => x.id === m.bolsonId);
+  if (!b) return;
+  if (m.tipo === 'egreso') {
+    b.egresado = Math.max(0, b.egresado - m.kg);
+  } else if (m.tipo === 'ingreso') {
+    b.ingresado = Math.max(0, b.ingresado - m.kg);
+    if (b.cargas) {
+      const ci = b.cargas.findIndex(c => c.fecha === m.fecha && c.kilos === m.kg);
+      if (ci !== -1) b.cargas.splice(ci, 1);
+    }
+  }
+}
+
+function eliminarMovimiento(movId) {
+  const idx = movimientos.findIndex(m => m.movId === movId);
+  if (idx === -1) { renderMovimientos(); return; }
+  _revertirMovEnBolson(movimientos[idx]);
+  movimientos.splice(idx, 1);
+  guardarEstado(); renderMovimientos(); renderDashboard(); renderBolsones();
+  mostrarToast('🗑️ Movimiento eliminado');
+}
+
+// ─── EDITAR EGRESO YA REGISTRADO ─────────────────────────────────
+let _editEgrBolsonSel = null;
+let _editEgrRealIdx   = null; // solo para movimientos sin movId
+
+// Fallback para egresos viejos que no tienen movId
+function abrirEditarEgresoIdx(realIdx) {
+  // Asignarle un movId ahora para poder editarlo normalmente
+  const m = movimientos[realIdx];
+  if (!m) return;
+  if (m.movId === undefined || m.movId === null) {
+    m.movId = nextMovId++;
+  }
+  abrirEditarEgreso(m.movId);
+}
+
+function abrirEditarEgreso(movId) {
+  const m = movimientos.find(x => x.movId === movId);
+  if (!m || m.tipo !== 'egreso') return;
+
+  _editEgrBolsonSel = m.bolsonId || null;
+
+  document.getElementById('edit-egr-movid').value       = movId;
+  document.getElementById('edit-egr-old-kg').value      = m.kg;
+  document.getElementById('edit-egr-old-bolsonid').value = m.bolsonId || '';
+  document.getElementById('edit-egr-subtitulo').textContent =
+    `Mov #${movId} · ${m.campo} Lote ${m.lote} · ${m.grano} · ${m.fecha||''}`;
+
+  document.getElementById('edit-egr-nro').value      = m.nro_cpe   || '';
+  document.getElementById('edit-egr-fecha').value    = m.fecha      || '';
+  document.getElementById('edit-egr-kilos').value    = m.kg         || '';
+  document.getElementById('edit-egr-chofer').value   = m.chofer     || '';
+  document.getElementById('edit-egr-dominios').value = m.dominios   || '';
+  document.getElementById('edit-egr-destino').value  = m.destino    || '';
+
+  // Pre-cargar selectores de campo/lote
+  const ingEl = document.getElementById('edit-egr-inquilino');
+  ingEl.value = m.inquilino || '';
+  filtrarCampos('edit-egr');
+  const campoEl = document.getElementById('edit-egr-campo');
+  campoEl.value = m.campo || '';
+  actualizarLotes('edit-egr');
+  document.getElementById('edit-egr-lote').value  = m.lote  || '';
+  document.getElementById('edit-egr-grano').value = m.grano || '';
+  document.getElementById('edit-egr-alert').innerHTML = '';
+
+  editFiltrarBolsones();
+
+  document.getElementById('edit-egreso-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function editFiltrarBolsones() {
+  const campo = document.getElementById('edit-egr-campo').value;
+  const lote  = document.getElementById('edit-egr-lote').value;
+  const grano = document.getElementById('edit-egr-grano').value;
+  const cont  = document.getElementById('edit-egr-bolsones');
+  if (!campo || !lote || !grano) { cont.innerHTML = ''; return; }
+
+  // Obtener el movimiento actual para saber los kg bloqueados
+  const movId  = parseInt(document.getElementById('edit-egr-movid').value);
+  const oldBid = parseInt(document.getElementById('edit-egr-old-bolsonid').value);
+  const oldKg  = parseFloat(document.getElementById('edit-egr-old-kg').value);
+
+  const disp = bolsones.filter(b =>
+    b.campo === campo && b.lote === parseInt(lote) && b.grano === grano
+  );
+
+  if (!disp.length) { cont.innerHTML = '<div class="no-bolsones" style="margin-top:8px">Sin bolsones para esa combinación</div>'; return; }
+
+  cont.innerHTML = '<div class="section-label" style="margin:8px 0">Seleccioná el bolsón</div>' +
+    disp.map(b => {
+      // Stock disponible = ingresado - egresado, pero si es el bolsón actual devolvemos los kg que ocupa
+      const stockReal = (b.ingresado - b.egresado) + (b.id === oldBid ? oldKg : 0);
+      const pct = b.ingresado > 0 ? Math.round((stockReal / b.ingresado) * 100) : 0;
+      const tc  = 'tag-' + b.grano.toLowerCase().replace('í','i').replace('ó','o');
+      const sel = _editEgrBolsonSel === b.id;
+      return `<div class="bolson-card ${sel ? 'selected' : ''}" id="edit-bc-${b.id}"
+        onclick="seleccionarBolsonEditEgr(${b.id})" style="margin-bottom:8px">
+        <div class="bolson-left">
+          <div class="bolson-title">Bolsón #${b.id} — Lote ${b.lote} · ${b.campo}${b.id===oldBid?' <span style=\'font-size:10px;color:var(--amber)\'>● actual</span>':''}</div>
+          <div class="bolson-meta">${b.inquilino}${b.cosecha?' · Cosecha '+b.cosecha:''}</div>
+          <div class="progbar" style="margin-top:6px"><div class="progbar-fill" style="width:${Math.min(100,pct)}%"></div></div>
+        </div>
+        <div class="bolson-right">
+          <div class="bolson-kg">${stockReal.toLocaleString('es-AR')} kg disp.</div>
+          <div class="bolson-pct">${pct}%</div>
+          <div style="margin-top:4px"><span class="tag ${tc}">${b.grano}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+function seleccionarBolsonEditEgr(id) {
+  _editEgrBolsonSel = id;
+  document.querySelectorAll('[id^="edit-bc-"]').forEach(c => c.classList.remove('selected'));
+  const el = document.getElementById('edit-bc-' + id);
+  if (el) el.classList.add('selected');
+}
+
+function guardarEdicionEgreso() {
+  const movId  = parseInt(document.getElementById('edit-egr-movid').value);
+  const oldKg  = parseFloat(document.getElementById('edit-egr-old-kg').value);
+  const oldBid = parseInt(document.getElementById('edit-egr-old-bolsonid').value);
+  const alertEl = document.getElementById('edit-egr-alert');
+
+  const m = movimientos.find(x => x.movId === movId);
+  if (!m) { alertEl.innerHTML = '<div class="alert alert-danger">Movimiento no encontrado.</div>'; return; }
+
+  const nro      = document.getElementById('edit-egr-nro').value.trim();
+  const fecha    = document.getElementById('edit-egr-fecha').value;
+  const nuevoKg  = parseFloat(document.getElementById('edit-egr-kilos').value);
+  const chofer   = document.getElementById('edit-egr-chofer').value.trim();
+  const dominios = document.getElementById('edit-egr-dominios').value.trim();
+  const destino  = document.getElementById('edit-egr-destino').value.trim();
+  const inquilino= document.getElementById('edit-egr-inquilino').value;
+  const campo    = document.getElementById('edit-egr-campo').value;
+  const lote     = parseInt(document.getElementById('edit-egr-lote').value);
+  const grano    = document.getElementById('edit-egr-grano').value;
+  const newBid   = _editEgrBolsonSel;
+
+  if (!fecha)              { alertEl.innerHTML = '<div class="alert alert-danger">Completá la fecha.</div>'; return; }
+  if (!nuevoKg || nuevoKg <= 0) { alertEl.innerHTML = '<div class="alert alert-danger">Ingresá los kg.</div>'; return; }
+  if (!newBid)             { alertEl.innerHTML = '<div class="alert alert-danger">Seleccioná el bolsón de origen.</div>'; return; }
+
+  // Revertir efecto en el bolsón viejo
+  const bViejo = bolsones.find(x => x.id === oldBid);
+  if (bViejo) bViejo.egresado = Math.max(0, bViejo.egresado - oldKg);
+
+  // Aplicar al bolsón nuevo
+  const bNuevo = bolsones.find(x => x.id === newBid);
+  if (!bNuevo) { alertEl.innerHTML = '<div class="alert alert-danger">Bolsón nuevo no encontrado.</div>'; return; }
+  const stockDisp = bNuevo.ingresado - bNuevo.egresado;
+  if (nuevoKg > stockDisp) {
+    // Revertir el rollback del viejo
+    if (bViejo) bViejo.egresado += oldKg;
+    alertEl.innerHTML = `<div class="alert alert-danger">Stock insuficiente en Bolsón #${bNuevo.id}. Disponible: ${stockDisp.toLocaleString('es-AR')} kg.</div>`;
+    return;
+  }
+  bNuevo.egresado += nuevoKg;
+
+  // Actualizar el movimiento
+  m.fecha    = fecha;
+  m.kg       = nuevoKg;
+  m.nro_cpe  = nro;
+  m.chofer   = chofer;
+  m.dominios = dominios;
+  m.destino  = destino;
+  m.inquilino= inquilino;
+  m.campo    = campo;
+  m.lote     = lote;
+  m.grano    = grano;
+  m.bolsonId = newBid;
+  m.ref      = `CPE ${nro||'s/n'} | Bolsón #${newBid} | ${dominios} → ${destino}`;
+  // Guardar kg y bolsonId viejos actualizados
+  document.getElementById('edit-egr-old-kg').value       = nuevoKg;
+  document.getElementById('edit-egr-old-bolsonid').value  = newBid;
+
+  guardarEstado();
+  cerrarEditEgreso();
+  renderMovimientos();
+  renderDashboard();
+  renderBolsones();
+  mostrarToast('✅ Egreso actualizado');
+}
+
+function cerrarEditEgreso(e) {
+  if (e && e.target !== document.getElementById('edit-egreso-overlay')) return;
+  document.getElementById('edit-egreso-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+  _editEgrBolsonSel = null;
+}
+
+// ─── EDITAR / ELIMINAR CARGA DE BOLSÓN ───────────────────────────
+function confirmarEliminarCarga(bolsonId, cargaIdx) {
+  const cont = document.getElementById('carga-accs-' + bolsonId + '-' + cargaIdx);
+  if (!cont) return;
+  cont.innerHTML = `<div class="confirm-inline">
+    <span>¿Eliminar?</span>
+    <button class="confirm-si" onclick="eliminarCarga(${bolsonId},${cargaIdx})">Sí</button>
+    <button class="confirm-no" onclick="verCargasDetalle(${bolsonId})">No</button>
+  </div>`;
+}
+
+function eliminarCarga(bolsonId, cargaIdx) {
+  const b = bolsones.find(x => x.id === bolsonId);
+  if (!b || !b.cargas || !b.cargas[cargaIdx]) return;
+  const carga = b.cargas[cargaIdx];
+  b.ingresado = Math.max(0, b.ingresado - carga.kilos);
+
+  // También eliminar el movimiento global asociado (por fecha y kg)
+  const mi = movimientos.findIndex(m =>
+    m.tipo === 'ingreso' && m.bolsonId === bolsonId &&
+    m.fecha === carga.fecha && m.kg === carga.kilos
+  );
+  if (mi !== -1) movimientos.splice(mi, 1);
+
+  b.cargas.splice(cargaIdx, 1);
+  guardarEstado();
+  renderDashboard();
+  renderBolsones();
+  verCargasDetalle(bolsonId); // re-render del modal
+  mostrarToast('🗑️ Carga eliminada');
+}
+
+function abrirEditarCarga(bolsonId, cargaIdx) {
+  const b = bolsones.find(x => x.id === bolsonId);
+  if (!b || !b.cargas || !b.cargas[cargaIdx]) return;
+  const c = b.cargas[cargaIdx];
+  const cont = document.getElementById('carga-edit-inline-' + bolsonId + '-' + cargaIdx);
+  if (!cont) return;
+  cont.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-top:10px">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Editar carga</div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div class="form-group">
+          <label>Kilos</label>
+          <input type="number" id="ec-kilos-${bolsonId}-${cargaIdx}" value="${c.kilos}" min="1">
+        </div>
+        <div class="form-group">
+          <label>Fecha</label>
+          <input type="date" id="ec-fecha-${bolsonId}-${cargaIdx}" value="${c.fecha||''}">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Observaciones</label>
+        <input type="text" id="ec-obs-${bolsonId}-${cargaIdx}" value="${c.obs||''}" placeholder="Observaciones">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-green" style="width:auto;padding:7px 18px;font-size:12px"
+          onclick="guardarEdicionCarga(${bolsonId},${cargaIdx})">💾 Guardar</button>
+        <button class="btn btn-outline" style="font-size:12px"
+          onclick="verCargasDetalle(${bolsonId})">Cancelar</button>
+      </div>
+    </div>`;
+  cont.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function guardarEdicionCarga(bolsonId, cargaIdx) {
+  const b = bolsones.find(x => x.id === bolsonId);
+  if (!b || !b.cargas || !b.cargas[cargaIdx]) return;
+  const c = b.cargas[cargaIdx];
+  const oldKilos = c.kilos;
+
+  const newKilos = parseFloat(document.getElementById(`ec-kilos-${bolsonId}-${cargaIdx}`).value);
+  const newFecha = document.getElementById(`ec-fecha-${bolsonId}-${cargaIdx}`).value;
+  const newObs   = document.getElementById(`ec-obs-${bolsonId}-${cargaIdx}`).value.trim();
+
+  if (!newKilos || newKilos <= 0) { mostrarToast('⚠️ Kilos inválidos'); return; }
+
+  // Actualizar ingresado del bolsón con la diferencia
+  b.ingresado = b.ingresado - oldKilos + newKilos;
+
+  // Actualizar movimiento global asociado
+  const mi = movimientos.findIndex(m =>
+    m.tipo === 'ingreso' && m.bolsonId === bolsonId &&
+    m.fecha === c.fecha && m.kg === oldKilos
+  );
+  if (mi !== -1) {
+    movimientos[mi].kg    = newKilos;
+    movimientos[mi].fecha = newFecha || movimientos[mi].fecha;
+    movimientos[mi].ref   = `Carga parcial · Bolsón #${bolsonId}${newObs?' — '+newObs:''}`;
+  }
+
+  c.kilos = newKilos;
+  if (newFecha) c.fecha = newFecha;
+  c.obs = newObs;
+
+  guardarEstado();
+  renderDashboard();
+  renderBolsones();
+  verCargasDetalle(bolsonId);
+  mostrarToast('✅ Carga actualizada');
 }
 
 function cerrarCargasModal(e) {
@@ -2428,7 +2824,14 @@ function registrarEgreso() {
     alertEl.innerHTML = `<div class="alert alert-danger">Stock insuficiente en Bolsón #${b.id}. Disponible: ${stock.toLocaleString('es-AR')} kg.</div>`; return;
   }
   b.egresado += kilos;
-  movimientos.push({ fecha: fecha || new Date().toISOString().split('T')[0], tipo: 'egreso', inquilino, campo, lote: parseInt(lote), grano, kg: kilos, ref: `CPE ${nro||'s/n'} | Bolsón #${b.id} | ${dominios} → ${destino}`, bolsonId: b.id });
+  movimientos.push({
+    movId: nextMovId++,
+    fecha: fecha || new Date().toISOString().split('T')[0],
+    tipo: 'egreso', inquilino, campo, lote: parseInt(lote), grano, kg: kilos,
+    ref: `CPE ${nro||'s/n'} | Bolsón #${b.id} | ${dominios} → ${destino}`,
+    bolsonId: b.id,
+    nro_cpe: nro || '', chofer, dominios, destino
+  });
 
   // Vincular automáticamente al acopio si la CPE tiene Rte. Comercial
   if (ultimaCPE && ultimaCPE.rte_comercial) {
@@ -2524,16 +2927,46 @@ function renderBolsones() {
 function renderMovimientos() {
   const fc=document.getElementById('filtro-campo').value;
   const ft=document.getElementById('filtro-tipo').value;
-  let lista=[...movimientos].reverse();
-  if(fc) lista=lista.filter(m=>m.campo===fc);
-  if(ft) lista=lista.filter(m=>m.tipo===ft);
-  const tbody=document.getElementById('tbody-movimientos');
-  if(!lista.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state">Sin movimientos registrados</div></td></tr>';return;}
-  tbody.innerHTML=lista.map(m=>{
-    const signo=m.tipo==='ingreso'?'+':'−';
-    const cls=m.tipo==='ingreso'?'tipo-ingreso':'tipo-egreso';
-    const tc='tag-'+m.grano.toLowerCase().replace('í','i').replace('ó','o');
-    return `<tr><td class="num" style="color:var(--text3)">${m.fecha}</td><td><span class="${cls}">${signo} ${m.tipo.toUpperCase()}</span></td><td><span class="badge-inq">${m.inquilino||''}</span></td><td><span class="badge-campo">${m.campo}</span></td><td class="num">${m.lote}</td><td><span class="tag ${tc}">${m.grano}</span></td><td class="num" style="font-weight:600">${signo} ${m.kg.toLocaleString('es-AR')}</td><td style="font-size:11px;color:var(--text3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.ref}</td></tr>`;
+  // Trabajamos sobre el array original con índices reales
+  let listaConIdx = movimientos.map((m, realIdx) => ({ m, realIdx })).reverse();
+  if(fc) listaConIdx = listaConIdx.filter(({m}) => m.campo === fc);
+  if(ft) listaConIdx = listaConIdx.filter(({m}) => m.tipo  === ft);
+  const tbody = document.getElementById('tbody-movimientos');
+  if (!listaConIdx.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">Sin movimientos registrados</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = listaConIdx.map(({m, realIdx}) => {
+    const signo = m.tipo==='ingreso' ? '+' : '−';
+    const cls   = m.tipo==='ingreso' ? 'tipo-ingreso' : 'tipo-egreso';
+    const tc    = 'tag-' + m.grano.toLowerCase().replace('í','i').replace('ó','o');
+    // Usar movId si existe, si no el índice real como fallback
+    const mid   = (m.movId !== undefined && m.movId !== null) ? m.movId : null;
+    const editBtn = m.tipo === 'egreso'
+      ? (mid !== null
+          ? `<button class="accion-btn accion-edit" onclick="abrirEditarEgreso(${mid})">✏️ Editar</button>`
+          : `<button class="accion-btn accion-edit" onclick="abrirEditarEgresoIdx(${realIdx})">✏️ Editar</button>`)
+      : '';
+    const delCall = mid !== null
+      ? `confirmarEliminarMov(${mid})`
+      : `confirmarEliminarMovIdx(${realIdx})`;
+    const accionId = mid !== null ? `accion-mov-${mid}` : `accion-mov-idx-${realIdx}`;
+    return `<tr>
+      <td class="num" style="color:var(--text3)">${m.fecha||'—'}</td>
+      <td><span class="${cls}">${signo} ${m.tipo.toUpperCase()}</span></td>
+      <td><span class="badge-inq">${m.inquilino||''}</span></td>
+      <td><span class="badge-campo">${m.campo}</span></td>
+      <td class="num">${m.lote}</td>
+      <td><span class="tag ${tc}">${m.grano}</span></td>
+      <td class="num" style="font-weight:600">${signo} ${m.kg.toLocaleString('es-AR')}</td>
+      <td style="font-size:11px;color:var(--text3);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.ref||''}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap" id="${accionId}">
+          ${editBtn}
+          <button class="accion-btn accion-del" onclick="${delCall}">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
   }).join('');
 }
 
@@ -2559,6 +2992,7 @@ function guardarEstado() {
     localStorage.setItem('sg_bolsones',    JSON.stringify(bolsones));
     localStorage.setItem('sg_movimientos', JSON.stringify(movimientos));
     localStorage.setItem('sg_nextBolson',  String(nextBolson));
+    localStorage.setItem('sg_nextMovId',   String(nextMovId));
     localStorage.setItem('sg_acopios',     JSON.stringify(acopios));
     localStorage.setItem('sg_choferes',    JSON.stringify(choferes));
     localStorage.setItem('sg_pctSueldo',   String(pctSueldo));
@@ -2575,6 +3009,7 @@ function guardarEstado() {
       bolsones,
       movimientos,
       nextBolson,
+      nextMovId,
       acopios,
       choferes,
       pctSueldo,
@@ -2609,6 +3044,7 @@ function cargarEstado() {
           if (d.bolsones)    bolsones    = d.bolsones;
           if (d.movimientos) movimientos = d.movimientos;
           if (d.nextBolson)  nextBolson  = d.nextBolson;
+          if (d.nextMovId)   nextMovId   = d.nextMovId;
           if (d.acopios)     acopios     = d.acopios;
           if (d.choferes)    choferes    = d.choferes;
           if (d.pctSueldo !== undefined) pctSueldo = d.pctSueldo;
@@ -2655,6 +3091,7 @@ function _cargarDesdeLocal() {
     const b   = localStorage.getItem('sg_bolsones');
     const m   = localStorage.getItem('sg_movimientos');
     const n   = localStorage.getItem('sg_nextBolson');
+    const nm  = localStorage.getItem('sg_nextMovId');
     const a   = localStorage.getItem('sg_acopios');
     const c   = localStorage.getItem('sg_choferes');
     const p   = localStorage.getItem('sg_pctSueldo');
@@ -2663,6 +3100,7 @@ function _cargarDesdeLocal() {
     if (b)   bolsones    = JSON.parse(b);
     if (m)   movimientos = JSON.parse(m);
     if (n)   nextBolson  = parseInt(n);
+    if (nm)  nextMovId   = parseInt(nm);
     if (a)   acopios     = JSON.parse(a);
     if (c)   choferes    = JSON.parse(c);
     if (p)   pctSueldo   = parseFloat(p);
@@ -2760,7 +3198,7 @@ function confirmarBorrado() {
       .catch(err => console.warn('Error al borrar en Firebase:', err));
   }
 
-  bolsones = []; movimientos = []; nextBolson = 1; bolsonSeleccionado = null;
+  bolsones = []; movimientos = []; nextBolson = 1; nextMovId = 1; bolsonSeleccionado = null;
   acopios = {}; choferes = {}; camiones = {}; pctSueldo = 18;
   cisterna = { lotes: [], movimientos: [] };
   ultimaCPE = null; acopioActual = null; choferActual = null; camionActual = null;
@@ -3321,6 +3759,83 @@ function calcularStatsChofer(clave, mes) {
   return { viajes, descs, totalKg, totalFlete, sueldo, gastos, anticipos, adelantos, neto };
 }
 
+// ─── EDITAR VIAJE (FLETE) ────────────────────────────────────────
+function abrirEditarViaje(clave, realIdx) {
+  const c = choferes[clave];
+  if (!c || !c.viajes[realIdx]) return;
+  const v = c.viajes[realIdx];
+
+  document.getElementById('edit-viaje-clave').value = clave;
+  document.getElementById('edit-viaje-idx').value   = realIdx;
+  document.getElementById('edit-viaje-subtitulo').textContent =
+    (c.nombre || 'Chofer') + ' · ' + (c.dominios || '') + ' · Viaje #' + (realIdx + 1);
+
+  document.getElementById('edit-viaje-fecha').value   = v.fecha    || '';
+  document.getElementById('edit-viaje-nro').value     = v.nro_cpe  || '';
+  document.getElementById('edit-viaje-campo').value   = v.campo    || '';
+  document.getElementById('edit-viaje-lote').value    = v.lote     || '';
+  document.getElementById('edit-viaje-grano').value   = v.grano    || '';
+  document.getElementById('edit-viaje-kg').value      = v.kg       || '';
+  document.getElementById('edit-viaje-destino').value = v.destino  || '';
+  document.getElementById('edit-viaje-alert').innerHTML = '';
+
+  document.getElementById('edit-viaje-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function guardarEdicionViaje() {
+  const clave   = document.getElementById('edit-viaje-clave').value;
+  const realIdx = parseInt(document.getElementById('edit-viaje-idx').value);
+  const alertEl = document.getElementById('edit-viaje-alert');
+
+  const c = choferes[clave];
+  if (!c || !c.viajes[realIdx]) {
+    alertEl.innerHTML = '<div class="alert alert-danger">Viaje no encontrado.</div>'; return;
+  }
+
+  const fecha   = document.getElementById('edit-viaje-fecha').value;
+  const nro_cpe = document.getElementById('edit-viaje-nro').value.trim();
+  const campo   = document.getElementById('edit-viaje-campo').value.trim();
+  const lote    = parseInt(document.getElementById('edit-viaje-lote').value) || '';
+  const grano   = document.getElementById('edit-viaje-grano').value;
+  const kg      = parseFloat(document.getElementById('edit-viaje-kg').value);
+  const destino = document.getElementById('edit-viaje-destino').value.trim();
+
+  if (!fecha) { alertEl.innerHTML = '<div class="alert alert-danger">La fecha es obligatoria.</div>'; return; }
+  if (!kg || kg <= 0) { alertEl.innerHTML = '<div class="alert alert-danger">Ingresá los kg.</div>'; return; }
+
+  const v     = c.viajes[realIdx];
+  const mesBefore = v.fecha ? v.fecha.slice(0, 7) : null;
+  const mesAfter  = fecha.slice(0, 7);
+
+  v.fecha   = fecha;
+  v.nro_cpe = nro_cpe;
+  v.campo   = campo;
+  v.lote    = lote;
+  v.grano   = grano;
+  v.kg      = kg;
+  v.destino = destino;
+  v.flete   = Math.round(kg * (c.tarifa_kg || 0));
+
+  // Si el mes cambió, actualizar mesActualFletes para mostrar el nuevo mes
+  if (mesBefore && mesAfter !== mesBefore) {
+    mesActualFletes = mesAfter;
+    mostrarToast(`📅 Viaje movido a ${mesLabel(mesAfter)}`);
+  } else {
+    mostrarToast('✅ Viaje actualizado');
+  }
+
+  guardarEstado();
+  cerrarEditViaje();
+  renderDetalleChofer(clave);
+}
+
+function cerrarEditViaje(e) {
+  if (e && e.target !== document.getElementById('edit-viaje-overlay')) return;
+  document.getElementById('edit-viaje-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
 function renderFletes() {
   choferActual = null;
   document.getElementById('fletes-lista-view').style.display = 'block';
@@ -3443,7 +3958,10 @@ function renderDetalleChofer(clave) {
         <td><span class="tag ${tc}">${v.grano||'—'}</span></td>
         <td class="num">${fk(v.kg)}</td>
         <td class="num" style="font-weight:600;color:var(--blue)">${$f(v.flete)}</td>
-        <td><button onclick="eliminarViaje('${clave}',${realIdx})" title="Eliminar" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 4px;border-radius:4px" onmouseover="this.style.color='var(--red)';this.style.background='var(--red-bg)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'">🗑</button></td>
+        <td style="white-space:nowrap">
+          <button class="accion-btn accion-edit" onclick="abrirEditarViaje('${clave}',${realIdx})" style="margin-right:3px">✏️</button>
+          <button onclick="eliminarViaje('${clave}',${realIdx})" title="Eliminar" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 4px;border-radius:4px" onmouseover="this.style.color='var(--red)';this.style.background='var(--red-bg)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'">🗑</button>
+        </td>
       </tr>`;
     }).join('');
   }
@@ -4348,6 +4866,78 @@ poblarFiltros();
 renderDashboard();
 renderEstructura();
 </script>
+<!-- ══ MODAL EDITAR EGRESO ════════════════════════════════════════ -->
+<div id="edit-egreso-overlay" class="edit-modal-overlay" style="display:none" onclick="cerrarEditEgreso(event)">
+  <div class="edit-modal" onclick="event.stopPropagation()">
+    <div class="edit-modal-header">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--text)">✏️ Editar egreso</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px" id="edit-egr-subtitulo"></div>
+      </div>
+      <button class="edit-modal-close" onclick="cerrarEditEgreso()">×</button>
+    </div>
+    <div class="edit-modal-body">
+      <input type="hidden" id="edit-egr-movid">
+      <input type="hidden" id="edit-egr-old-kg">
+      <input type="hidden" id="edit-egr-old-bolsonid">
+
+      <div class="edit-section-title">Datos de la CPE</div>
+      <div class="form-grid">
+        <div class="form-group"><label>N° CPE</label><input type="text" id="edit-egr-nro" placeholder="00000-00000000"></div>
+        <div class="form-group"><label>Fecha</label><input type="date" id="edit-egr-fecha"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label>Peso neto (kg)</label><input type="number" id="edit-egr-kilos" min="1"></div>
+        <div class="form-group"><label>Chofer</label><input type="text" id="edit-egr-chofer"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label>Dominios</label><input type="text" id="edit-egr-dominios"></div>
+        <div class="form-group"><label>Destino</label><input type="text" id="edit-egr-destino"></div>
+      </div>
+
+      <div class="edit-section-title">Bolsón de origen</div>
+      <div style="background:var(--amber-bg);border:1px solid #FCD34D;border-radius:var(--radius);padding:9px 12px;margin-bottom:14px;font-size:12px;color:var(--amber)">
+        ⚠️ Cambiar el bolsón revertirá los kg del bolsón anterior y los aplicará al nuevo.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Inquilino</label>
+          <select id="edit-egr-inquilino" onchange="filtrarCampos('edit-egr');editFiltrarBolsones()">
+            <option value="">— Seleccionar —</option>
+            <option value="JAVIER">JAVIER</option>
+            <option value="JAM&JAM">JAM&JAM</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Campo</label>
+          <select id="edit-egr-campo" onchange="actualizarLotes('edit-egr');editFiltrarBolsones()"><option value="">— Seleccionar —</option></select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Lote</label>
+          <select id="edit-egr-lote" onchange="editFiltrarBolsones()"><option value="">— Seleccionar —</option></select>
+        </div>
+        <div class="form-group">
+          <label>Grano</label>
+          <select id="edit-egr-grano" onchange="editFiltrarBolsones()">
+            <option value="">— Seleccionar —</option>
+            <option value="Soja">Soja</option><option value="Maíz">Maíz</option>
+            <option value="Trigo">Trigo</option><option value="Sorgo">Sorgo</option>
+          </select>
+        </div>
+      </div>
+      <div id="edit-egr-bolsones" style="margin-top:4px"></div>
+      <div id="edit-egr-alert" style="margin-top:10px"></div>
+    </div>
+    <div class="edit-modal-footer">
+      <button class="btn btn-outline" onclick="cerrarEditEgreso()">Cancelar</button>
+      <button class="btn btn-green" style="width:auto;padding:9px 24px" onclick="guardarEdicionEgreso()">💾 Guardar cambios</button>
+    </div>
+  </div>
+</div>
+<!-- ════════════════════════════════════════════════════════════════ -->
+
 <!-- ══ MODAL HISTORIAL DE CARGAS ══════════════════════════════════ -->
 <div id="cargas-modal-overlay" class="cargas-modal-overlay" style="display:none" onclick="cerrarCargasModal(event)">
   <div class="cargas-modal" onclick="event.stopPropagation()">
@@ -4360,6 +4950,59 @@ renderEstructura();
     </div>
     <div class="cargas-modal-body" id="cargas-modal-body">
       <div class="empty-state">Sin cargas registradas.</div>
+    </div>
+  </div>
+</div>
+<!-- ════════════════════════════════════════════════════════════════ -->
+
+<!-- ══ MODAL EDITAR VIAJE (FLETE) ══════════════════════════════════ -->
+<div id="edit-viaje-overlay" class="edit-modal-overlay" style="display:none" onclick="cerrarEditViaje(event)">
+  <div class="edit-modal" style="max-width:520px" onclick="event.stopPropagation()">
+    <div class="edit-modal-header">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--text)">✏️ Editar viaje</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px" id="edit-viaje-subtitulo"></div>
+      </div>
+      <button class="edit-modal-close" onclick="cerrarEditViaje()">×</button>
+    </div>
+    <div class="edit-modal-body">
+      <input type="hidden" id="edit-viaje-clave">
+      <input type="hidden" id="edit-viaje-idx">
+
+      <div style="background:var(--blue-bg);border:1px solid #BFDBFE;border-radius:var(--radius);padding:9px 12px;margin-bottom:16px;font-size:12px;color:var(--blue)">
+        💡 Si cambiás la fecha a otro mes, el viaje se moverá automáticamente a ese mes.
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group"><label>Fecha del viaje</label><input type="date" id="edit-viaje-fecha"></div>
+        <div class="form-group"><label>N° CPE</label><input type="text" id="edit-viaje-nro" placeholder="00000-00000000"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label>Campo</label><input type="text" id="edit-viaje-campo" placeholder="Ej: HORACIO"></div>
+        <div class="form-group"><label>Lote</label><input type="number" id="edit-viaje-lote" placeholder="Ej: 1" min="1"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Grano</label>
+          <select id="edit-viaje-grano">
+            <option value="">— Seleccionar —</option>
+            <option value="Soja">Soja</option>
+            <option value="Maíz">Maíz</option>
+            <option value="Trigo">Trigo</option>
+            <option value="Sorgo">Sorgo</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Kg transportados</label><input type="number" id="edit-viaje-kg" min="1" placeholder="Ej: 29460"></div>
+      </div>
+      <div class="form-group">
+        <label>Destino</label>
+        <input type="text" id="edit-viaje-destino" placeholder="Ej: MOLINOS AGRO S.A.">
+      </div>
+      <div id="edit-viaje-alert" style="margin-top:10px"></div>
+    </div>
+    <div class="edit-modal-footer">
+      <button class="btn btn-outline" onclick="cerrarEditViaje()">Cancelar</button>
+      <button class="btn btn-green" style="width:auto;padding:9px 24px" onclick="guardarEdicionViaje()">💾 Guardar cambios</button>
     </div>
   </div>
 </div>
