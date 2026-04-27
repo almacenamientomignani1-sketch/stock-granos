@@ -21,13 +21,13 @@
 
   // ▼▼▼ REEMPLAZÁ ESTOS VALORES CON LOS DE TU PROYECTO FIREBASE ▼▼▼
   const firebaseConfig = {
-  apiKey: "AIzaSyC9cCrO4Git9aEEe0CtMQcvJHuiI1x0K7w",
-  authDomain: "stock-granos-campo.firebaseapp.com",
-  databaseURL: "https://stock-granos-campo-default-rtdb.firebaseio.com",
-  projectId: "stock-granos-campo",
-  storageBucket: "stock-granos-campo.firebasestorage.app",
-  messagingSenderId: "400354753690",
-  appId: "1:400354753690:web:af47783da480723917b323"
+    apiKey:            "TU_API_KEY",
+    authDomain:        "TU_PROYECTO.firebaseapp.com",
+    databaseURL:       "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+    projectId:         "TU_PROYECTO",
+    storageBucket:     "TU_PROYECTO.appspot.com",
+    messagingSenderId: "TU_SENDER_ID",
+    appId:             "TU_APP_ID"
   };
   // ▲▲▲ FIN DE CONFIGURACIÓN ▲▲▲
 
@@ -2547,6 +2547,7 @@ function abrirEditarEgreso(movId) {
     `Mov #${movId} · ${m.campo} Lote ${m.lote} · ${m.grano} · ${m.fecha||''}`;
 
   document.getElementById('edit-egr-nro').value      = m.nro_cpe   || '';
+  document.getElementById('edit-egr-old-nro').value  = m.nro_cpe   || '';
   document.getElementById('edit-egr-fecha').value    = m.fecha      || '';
   document.getElementById('edit-egr-kilos').value    = m.kg         || '';
   document.getElementById('edit-egr-chofer').value   = m.chofer     || '';
@@ -2622,6 +2623,7 @@ function guardarEdicionEgreso() {
   const movId  = parseInt(document.getElementById('edit-egr-movid').value);
   const oldKg  = parseFloat(document.getElementById('edit-egr-old-kg').value);
   const oldBid = parseInt(document.getElementById('edit-egr-old-bolsonid').value);
+  const oldNro = document.getElementById('edit-egr-old-nro').value.trim();
   const alertEl = document.getElementById('edit-egr-alert');
 
   const m = movimientos.find(x => x.movId === movId);
@@ -2639,27 +2641,64 @@ function guardarEdicionEgreso() {
   const grano    = document.getElementById('edit-egr-grano').value;
   const newBid   = _editEgrBolsonSel;
 
-  if (!fecha)              { alertEl.innerHTML = '<div class="alert alert-danger">Completá la fecha.</div>'; return; }
+  if (!fecha)                   { alertEl.innerHTML = '<div class="alert alert-danger">Completá la fecha.</div>'; return; }
   if (!nuevoKg || nuevoKg <= 0) { alertEl.innerHTML = '<div class="alert alert-danger">Ingresá los kg.</div>'; return; }
-  if (!newBid)             { alertEl.innerHTML = '<div class="alert alert-danger">Seleccioná el bolsón de origen.</div>'; return; }
+  if (!newBid)                  { alertEl.innerHTML = '<div class="alert alert-danger">Seleccioná el bolsón de origen.</div>'; return; }
 
-  // Revertir efecto en el bolsón viejo
+  // ── 1. BOLSÓN ─────────────────────────────────────────────────────
   const bViejo = bolsones.find(x => x.id === oldBid);
   if (bViejo) bViejo.egresado = Math.max(0, bViejo.egresado - oldKg);
 
-  // Aplicar al bolsón nuevo
   const bNuevo = bolsones.find(x => x.id === newBid);
-  if (!bNuevo) { alertEl.innerHTML = '<div class="alert alert-danger">Bolsón nuevo no encontrado.</div>'; return; }
+  if (!bNuevo) {
+    if (bViejo) bViejo.egresado += oldKg; // revertir
+    alertEl.innerHTML = '<div class="alert alert-danger">Bolsón nuevo no encontrado.</div>'; return;
+  }
   const stockDisp = bNuevo.ingresado - bNuevo.egresado;
   if (nuevoKg > stockDisp) {
-    // Revertir el rollback del viejo
     if (bViejo) bViejo.egresado += oldKg;
     alertEl.innerHTML = `<div class="alert alert-danger">Stock insuficiente en Bolsón #${bNuevo.id}. Disponible: ${stockDisp.toLocaleString('es-AR')} kg.</div>`;
     return;
   }
   bNuevo.egresado += nuevoKg;
 
-  // Actualizar el movimiento
+  // ── 2. ACOPIO — buscar por CPE viejo, actualizar kg ──────────────
+  // La entrega en el acopio se identifica por nro_cpe
+  const nroBuscar = oldNro || nro;
+  if (nroBuscar) {
+    Object.values(acopios).forEach(a => {
+      const mov = a.movimientos.find(am =>
+        am.tipo === 'entrega' && am.nro_cpe === nroBuscar
+      );
+      if (mov) {
+        mov.kg      = nuevoKg;
+        mov.nro_cpe = nro || mov.nro_cpe; // actualizar CPE si cambió
+        mov.campo   = campo   || mov.campo;
+        mov.lote    = lote    || mov.lote;
+        mov.dominios= dominios|| mov.dominios;
+        mov.fecha   = fecha   || mov.fecha;
+      }
+    });
+  }
+
+  // ── 3. CHOFER — buscar viaje por CPE viejo, actualizar kg y flete ─
+  if (nroBuscar) {
+    Object.values(choferes).forEach(c => {
+      const viaje = c.viajes.find(v => v.nro_cpe === nroBuscar);
+      if (viaje) {
+        viaje.kg      = nuevoKg;
+        viaje.nro_cpe = nro     || viaje.nro_cpe;
+        viaje.campo   = campo   || viaje.campo;
+        viaje.lote    = lote    || viaje.lote;
+        viaje.destino = destino || viaje.destino;
+        viaje.grano   = grano   || viaje.grano;
+        viaje.fecha   = fecha   || viaje.fecha;
+        viaje.flete   = Math.round(nuevoKg * (c.tarifa_kg || 0));
+      }
+    });
+  }
+
+  // ── 4. MOVIMIENTO GLOBAL ──────────────────────────────────────────
   m.fecha    = fecha;
   m.kg       = nuevoKg;
   m.nro_cpe  = nro;
@@ -2672,16 +2711,18 @@ function guardarEdicionEgreso() {
   m.grano    = grano;
   m.bolsonId = newBid;
   m.ref      = `CPE ${nro||'s/n'} | Bolsón #${newBid} | ${dominios} → ${destino}`;
-  // Guardar kg y bolsonId viejos actualizados
-  document.getElementById('edit-egr-old-kg').value       = nuevoKg;
-  document.getElementById('edit-egr-old-bolsonid').value  = newBid;
+
+  // Actualizar hidden fields para si se vuelve a editar sin recargar
+  document.getElementById('edit-egr-old-kg').value      = nuevoKg;
+  document.getElementById('edit-egr-old-bolsonid').value = newBid;
+  document.getElementById('edit-egr-old-nro').value      = nro;
 
   guardarEstado();
   cerrarEditEgreso();
   renderMovimientos();
   renderDashboard();
   renderBolsones();
-  mostrarToast('✅ Egreso actualizado');
+  mostrarToast('✅ Egreso actualizado — bolsón, acopio y chofer sincronizados');
 }
 
 function cerrarEditEgreso(e) {
@@ -4880,6 +4921,7 @@ renderEstructura();
       <input type="hidden" id="edit-egr-movid">
       <input type="hidden" id="edit-egr-old-kg">
       <input type="hidden" id="edit-egr-old-bolsonid">
+      <input type="hidden" id="edit-egr-old-nro">
 
       <div class="edit-section-title">Datos de la CPE</div>
       <div class="form-grid">
