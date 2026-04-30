@@ -2683,9 +2683,10 @@ function guardarEdicionEgreso() {
 
   // ── 3. CHOFER — buscar viaje por CPE viejo, actualizar kg y flete ─
   if (nroBuscar) {
-    Object.values(choferes).forEach(c => {
+    Object.entries(choferes).forEach(([claveCh, c]) => {
       const viaje = c.viajes.find(v => v.nro_cpe === nroBuscar);
       if (viaje) {
+        const fechaViejo = viaje.fecha ? viaje.fecha.slice(0,7) : null;
         viaje.kg      = nuevoKg;
         viaje.nro_cpe = nro     || viaje.nro_cpe;
         viaje.campo   = campo   || viaje.campo;
@@ -2694,6 +2695,13 @@ function guardarEdicionEgreso() {
         viaje.grano   = grano   || viaje.grano;
         viaje.fecha   = fecha   || viaje.fecha;
         viaje.flete   = Math.round(nuevoKg * (c.tarifa_kg || 0));
+
+        // Si cambió el mes del viaje, reubicar mesActualFletes al mes con datos
+        const fechaNuevo = viaje.fecha ? viaje.fecha.slice(0,7) : null;
+        if (fechaViejo && fechaNuevo && fechaNuevo !== fechaViejo) {
+          const mesesChofer = mesesDisponibles(c.viajes);
+          mesActualFletes = mesesChofer.includes(fechaNuevo) ? fechaNuevo : (mesesChofer[0] || fechaNuevo);
+        }
       }
     });
   }
@@ -3858,10 +3866,12 @@ function guardarEdicionViaje() {
   v.destino = destino;
   v.flete   = Math.round(kg * (c.tarifa_kg || 0));
 
-  // Si el mes cambió, actualizar mesActualFletes para mostrar el nuevo mes
+  // Si el mes cambió, ir al nuevo mes y validar que exista en la lista
   if (mesBefore && mesAfter !== mesBefore) {
-    mesActualFletes = mesAfter;
-    mostrarToast(`📅 Viaje movido a ${mesLabel(mesAfter)}`);
+    // Recalcular meses disponibles para este chofer con la fecha ya actualizada
+    const mesesChofer = mesesDisponibles(c.viajes);
+    mesActualFletes = mesesChofer.includes(mesAfter) ? mesAfter : (mesesChofer[0] || mesAfter);
+    mostrarToast(`📅 Viaje movido a ${mesLabel(mesActualFletes)}`);
   } else {
     mostrarToast('✅ Viaje actualizado');
   }
@@ -3889,17 +3899,19 @@ function renderFletes() {
   const cardsEl  = document.getElementById('fletes-chofer-cards');
   const mesSelEl = document.getElementById('fletes-mes-selector');
 
-  // Mes actual
-  if (!mesActualFletes) {
-    const todosViajes = keys.flatMap(k => choferes[k].viajes);
-    const meses = mesesDisponibles(todosViajes);
-    mesActualFletes = meses[0] || new Date().toISOString().slice(0,7);
+  // Mes actual — siempre validar que el mes seleccionado tenga viajes
+  const todosViajesAll = keys.flatMap(k => choferes[k].viajes);
+  const mesesAll = mesesDisponibles(todosViajesAll);
+  if (mesesAll.length === 0) mesesAll.push(new Date().toISOString().slice(0,7));
+
+  // Si mesActualFletes no está en la lista de meses disponibles, ir al más reciente
+  if (!mesActualFletes || !mesesAll.includes(mesActualFletes)) {
+    mesActualFletes = mesesAll[0];
   }
 
   // Selector de mes
-  const todosViajes = keys.flatMap(k => choferes[k].viajes);
-  const meses = mesesDisponibles(todosViajes);
-  if (meses.length === 0) meses.push(new Date().toISOString().slice(0,7));
+  const todosViajes = todosViajesAll;
+  const meses = mesesAll;
   mesSelEl.innerHTML = meses.map(m =>
     `<button class="mes-btn${m===mesActualFletes?' active':''}" onclick="mesActualFletes='${m}';renderFletes()">${mesLabel(m)}</button>`
   ).join('');
