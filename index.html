@@ -3095,6 +3095,8 @@ function cargarEstado() {
           if (d.nextBolson)  nextBolson  = d.nextBolson;
           if (d.nextMovId)   nextMovId   = d.nextMovId;
           if (d.acopios)     acopios     = d.acopios;
+          if (d.choferes)  { choferes    = d.choferes; _sanitizarChoferes(); }
+          if (d.pctSueldo)   pctSueldo   = d.pctSueldo;
           if (d.choferes)    choferes    = d.choferes;
           if (d.pctSueldo !== undefined) pctSueldo = d.pctSueldo;
           if (d.camiones)    camiones    = d.camiones;
@@ -3151,7 +3153,7 @@ function _cargarDesdeLocal() {
     if (n)   nextBolson  = parseInt(n);
     if (nm)  nextMovId   = parseInt(nm);
     if (a)   acopios     = JSON.parse(a);
-    if (c)   choferes    = JSON.parse(c);
+    if (c) { choferes    = JSON.parse(c); _sanitizarChoferes(); }
     if (p)   pctSueldo   = parseFloat(p);
     if (cam) camiones    = JSON.parse(cam);
     if (cist)cisterna    = JSON.parse(cist);
@@ -3744,6 +3746,15 @@ async function procesarPDFCertificacion(input) {
 
 // ─── MÓDULO FLETES ────────────────────────────────────────────────
 
+// Garantiza que cada chofer tenga sus arrays aunque vengan de versiones viejas
+function _sanitizarChoferes() {
+  Object.keys(choferes).forEach(k => {
+    const c = choferes[k];
+    if (!Array.isArray(c.viajes))     c.viajes     = [];
+    if (!Array.isArray(c.descuentos)) c.descuentos = [];
+  });
+}
+
 function obtenerOCrearChofer(nombre, dominios) {
   const clave = (nombre + '|' + dominios).trim().toUpperCase().replace(/\s+/g,'_').slice(0,60);
   if (!choferes[clave]) {
@@ -3770,7 +3781,7 @@ function guardarTarifaChofer(val) {
 function recalcularViajesChofer(clave) {
   if (!choferes[clave]) return;
   const tarifa = choferes[clave].tarifa_kg || 0;
-  choferes[clave].viajes.forEach(v => { v.flete = Math.round(v.kg * tarifa); });
+  (choferes[clave].viajes || []).forEach(v => { v.flete = Math.round((v.kg||0) * tarifa); });
 }
 
 function recalcularViajes() {
@@ -3796,14 +3807,16 @@ function mesLabel(ym) {
 
 function calcularStatsChofer(clave, mes) {
   const c = choferes[clave];
-  const viajes = mes ? c.viajes.filter(v => v.fecha && v.fecha.startsWith(mes)) : c.viajes;
-  const descs  = mes ? c.descuentos.filter(d => d.mes === mes) : c.descuentos;
-  const totalKg    = viajes.reduce((a,v)=>a+v.kg,0);
-  const totalFlete = viajes.reduce((a,v)=>a+v.flete,0);
+  const todosViajes = c.viajes     || [];
+  const todosDescs  = c.descuentos || [];
+  const viajes = mes ? todosViajes.filter(v => v.fecha && v.fecha.startsWith(mes)) : todosViajes;
+  const descs  = mes ? todosDescs.filter(d => d.mes === mes) : todosDescs;
+  const totalKg    = viajes.reduce((a,v)=>a+(v.kg||0),0);
+  const totalFlete = viajes.reduce((a,v)=>a+(v.flete||0),0);
   const sueldo     = Math.round(totalFlete * (pctSueldo/100));
-  const gastos     = descs.filter(d=>d.tipo==='gasto').reduce((a,d)=>a+d.importe,0);
-  const anticipos  = descs.filter(d=>d.tipo==='anticipo').reduce((a,d)=>a+d.importe,0);
-  const adelantos  = descs.filter(d=>d.tipo==='adelanto').reduce((a,d)=>a+d.importe,0);
+  const gastos     = descs.filter(d=>d.tipo==='gasto').reduce((a,d)=>a+(d.importe||0),0);
+  const anticipos  = descs.filter(d=>d.tipo==='anticipo').reduce((a,d)=>a+(d.importe||0),0);
+  const adelantos  = descs.filter(d=>d.tipo==='adelanto').reduce((a,d)=>a+(d.importe||0),0);
   const neto       = sueldo + gastos - anticipos - adelantos;
   return { viajes, descs, totalKg, totalFlete, sueldo, gastos, anticipos, adelantos, neto };
 }
@@ -3900,7 +3913,7 @@ function renderFletes() {
   const mesSelEl = document.getElementById('fletes-mes-selector');
 
   // Mes actual — siempre validar que el mes seleccionado tenga viajes
-  const todosViajesAll = keys.flatMap(k => choferes[k].viajes);
+  const todosViajesAll = keys.flatMap(k => choferes[k].viajes || []);
   const mesesAll = mesesDisponibles(todosViajesAll);
   if (mesesAll.length === 0) mesesAll.push(new Date().toISOString().slice(0,7));
 
@@ -3971,7 +3984,7 @@ function volverListaFletes() {
 
 function renderDetalleChofer(clave) {
   const c  = choferes[clave];
-  const todosViajes = c.viajes;
+  const todosViajes = c.viajes || [];
   const meses = mesesDisponibles(todosViajes);
   if (!mesActualFletes || !meses.includes(mesActualFletes)) {
     mesActualFletes = meses[0] || new Date().toISOString().slice(0,7);
