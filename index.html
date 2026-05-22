@@ -6550,10 +6550,14 @@ function renderResumenCisterna() {
     lotesEl.innerHTML = cisterna.lotes.map(l => {
       const pct2 = l.litros_total > 0 ? Math.round((l.litros_disp/l.litros_total)*100) : 0;
       const fillCls = pct2 < 10 ? 'low' : pct2 < 30 ? 'warn' : '';
-      return `<div style="margin-bottom:12px">
+      return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
           <span style="font-size:12px;font-weight:600">Lote ${l.id} — ${l.fecha} <span style="color:var(--text3);font-weight:400">${l.proveedor||''}</span></span>
-          <span style="font-size:12px;font-family:var(--mono)">${fk(Math.round(l.litros_disp))} / ${fk(l.litros_total)} L</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;font-family:var(--mono)">${fk(Math.round(l.litros_disp))} / ${fk(l.litros_total)} L</span>
+            <button onclick="abrirEditarEntrada(${l.id})" title="Editar entrada" style="padding:2px 8px;font-size:11px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;font-family:var(--sans)">✏️</button>
+            <button onclick="eliminarEntrada(${l.id})" title="Eliminar entrada" style="padding:2px 8px;font-size:11px;background:#FEE2E2;color:#B91C1C;border:1px solid #FCA5A5;border-radius:4px;cursor:pointer;font-family:var(--sans)">🗑</button>
+          </div>
         </div>
         <div class="saldo-bar"><div class="saldo-bar-fill ${fillCls}" style="width:${pct2}%"></div></div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px">${$f(l.precio_litro)}/L · ${pct2}% disponible${l.litros_disp<=0?' · <span style="color:var(--red)">AGOTADO</span>':''}</div>
@@ -6866,19 +6870,27 @@ function renderHistorial() {
   cont.innerHTML = lista.map(m => {
     const fd = m.fecha ? m.fecha.split('-').reverse().join('/') : '—';
     if (m.tipo === 'entrada') {
+      // Asegurar id único en entradas viejas
+      if (!m.ent_id) m.ent_id = m.lote_id || m.fecha + '_' + m.litros;
       return `<div class="retiro-card">
         <div class="retiro-card-top">
           <div>
             <span class="mov-tipo-pill pill-entrega">ENTRADA</span>
             <span style="font-size:12px;color:var(--text2);margin-left:8px">${fd}</span>
             ${m.proveedor ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">${m.proveedor}</span>` : ''}
+            ${m.remito ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">📄 Remito: ${m.remito}</div>` : ''}
           </div>
-          <div style="text-align:right">
-            <div style="font-weight:700;color:var(--green);font-size:14px">+${fk(m.litros)} L</div>
-            <div style="font-size:11px;color:var(--text3)">$${fk(m.precio_litro)}/L · Lote #${m.lote_id}</div>
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="text-align:right">
+              <div style="font-weight:700;color:var(--green);font-size:14px">+${fk(m.litros)} L</div>
+              <div style="font-size:11px;color:var(--text3)">$${fk(m.precio_litro)}/L · Lote #${m.lote_id}</div>
+              <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px">
+                <button onclick="abrirEditarEntrada(${m.lote_id})" style="padding:3px 10px;font-size:11px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;font-family:var(--sans)">✏️ Editar</button>
+                <button onclick="eliminarEntrada(${m.lote_id})" style="padding:3px 10px;font-size:11px;background:#FEE2E2;color:#B91C1C;border:1px solid #FCA5A5;border-radius:4px;cursor:pointer;font-family:var(--sans)">🗑 Eliminar</button>
+              </div>
+            </div>
           </div>
         </div>
-        ${m.remito ? `<div style="font-size:11px;color:var(--text3);margin-top:4px">📄 Remito: ${m.remito}</div>` : ''}
       </div>`;
     } else {
       // Asegurar que el movimiento tenga id
@@ -7025,6 +7037,151 @@ function eliminarEquipo(categoria, idx) {
   else cisterna.equipos_flete_extra.splice(idx, 1);
   guardarEstado();
   renderListaEquiposModal(categoria);
+}
+
+// ── ELIMINAR ENTRADA ──────────────────────────────────────────────
+function eliminarEntrada(loteId) {
+  const lote = cisterna.lotes.find(l => l.id === loteId);
+  if (!lote) return;
+  const litrosUsados = lote.litros_total - lote.litros_disp;
+  if (litrosUsados > 0) {
+    if (!confirm(`Este lote ya tiene ${Math.round(litrosUsados).toLocaleString('es-AR')} L consumidos. Si lo eliminás, los retiros asociados perderán su referencia de costo.\n\n¿Confirmar eliminación?`)) return;
+  } else {
+    if (!confirm(`¿Eliminar Lote #${loteId} (${lote.litros_total.toLocaleString('es-AR')} L — ${lote.proveedor || 'sin proveedor'})?`)) return;
+  }
+  // Quitar el lote
+  const idx = cisterna.lotes.findIndex(l => l.id === loteId);
+  cisterna.lotes.splice(idx, 1);
+  // Quitar el movimiento de entrada correspondiente
+  const midx = cisterna.movimientos.findIndex(m => m.tipo === 'entrada' && m.lote_id === loteId);
+  if (midx !== -1) cisterna.movimientos.splice(midx, 1);
+  guardarEstado();
+  mostrarToast(`🗑️ Lote #${loteId} eliminado`, 'warn');
+  renderResumenCisterna();
+  if (document.getElementById('comb-historial-list')) renderHistorial();
+}
+
+// ── EDITAR ENTRADA ────────────────────────────────────────────────
+let _editando_entrada_id = null;
+
+function abrirEditarEntrada(loteId) {
+  const lote = cisterna.lotes.find(l => l.id === loteId);
+  const mov  = cisterna.movimientos.find(m => m.tipo === 'entrada' && m.lote_id === loteId);
+  if (!lote) return;
+  _editando_entrada_id = loteId;
+
+  const litrosUsados = lote.litros_total - lote.litros_disp;
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-editar-entrada';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--radius-lg);padding:24px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <div style="font-size:15px;font-weight:700">✏️ Editar entrada — Lote #${loteId}</div>
+        <button onclick="cerrarEditarEntrada()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+      </div>
+
+      ${litrosUsados > 0 ? `<div class="alert" style="background:var(--amber-bg);border:1px solid #FCD34D;border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--amber)">
+        ⚠️ Este lote tiene <strong>${Math.round(litrosUsados).toLocaleString('es-AR')} L ya consumidos</strong>. El precio y los litros totales sólo se pueden aumentar o corregir, no reducir por debajo de los litros ya usados.
+      </div>` : ''}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="config-field">
+          <label>Fecha</label>
+          <input type="date" id="eent-fecha" value="${lote.fecha||''}" style="padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;width:100%;background:var(--surface);color:var(--text)">
+        </div>
+        <div class="config-field">
+          <label>Litros totales</label>
+          <input type="number" id="eent-litros" value="${lote.litros_total}" min="${litrosUsados || 1}" step="0.1"
+            style="padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;width:100%;background:var(--surface);color:var(--text)">
+          ${litrosUsados > 0 ? `<small style="color:var(--text3);font-size:10px">Mín: ${Math.ceil(litrosUsados).toLocaleString('es-AR')} L (ya usados)</small>` : ''}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="config-field">
+          <label>Precio por litro ($)</label>
+          <input type="number" id="eent-precio" value="${lote.precio_litro}" min="0" step="0.01"
+            style="padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;width:100%;background:var(--surface);color:var(--text)">
+        </div>
+        <div class="config-field">
+          <label>Proveedor</label>
+          <input type="text" id="eent-proveedor" value="${lote.proveedor||''}" placeholder="Ej: YPF, Shell..."
+            style="padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;width:100%;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+
+      <div class="config-field" style="margin-bottom:16px">
+        <label>Remito</label>
+        <input type="text" id="eent-remito" value="${lote.remito || (mov && mov.remito) || ''}" placeholder="Número de remito (opcional)"
+          style="padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;width:100%;background:var(--surface);color:var(--text)">
+      </div>
+
+      <div id="eent-alert" style="margin-bottom:10px"></div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="cerrarEditarEntrada()" style="padding:8px 20px;background:none;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--sans)">Cancelar</button>
+        <button onclick="guardarEdicionEntrada()" style="padding:8px 22px;background:var(--green);color:#fff;border:none;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">✅ Guardar cambios</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  // Cerrar al click en el fondo
+  modal.addEventListener('click', e => { if (e.target === modal) cerrarEditarEntrada(); });
+}
+
+function cerrarEditarEntrada() {
+  const m = document.getElementById('modal-editar-entrada');
+  if (m) m.remove();
+  _editando_entrada_id = null;
+}
+
+function guardarEdicionEntrada() {
+  const loteId = _editando_entrada_id;
+  const loteIdx = cisterna.lotes.findIndex(l => l.id === loteId);
+  const movIdx  = cisterna.movimientos.findIndex(m => m.tipo === 'entrada' && m.lote_id === loteId);
+  if (loteIdx === -1) return;
+
+  const alertEl = document.getElementById('eent-alert');
+  const fecha    = document.getElementById('eent-fecha').value;
+  const litros   = parseFloat(document.getElementById('eent-litros').value);
+  const precio   = parseFloat(document.getElementById('eent-precio').value);
+  const proveedor= document.getElementById('eent-proveedor').value.trim();
+  const remito   = document.getElementById('eent-remito').value.trim();
+
+  if (!fecha) { alertEl.innerHTML='<div class="alert alert-danger">Ingresá una fecha.</div>'; return; }
+  if (!litros || litros <= 0) { alertEl.innerHTML='<div class="alert alert-danger">Ingresá litros válidos.</div>'; return; }
+  if (!precio || precio <= 0) { alertEl.innerHTML='<div class="alert alert-danger">Ingresá un precio válido.</div>'; return; }
+
+  const lote = cisterna.lotes[loteIdx];
+  const litrosUsados = lote.litros_total - lote.litros_disp;
+
+  if (litros < litrosUsados) {
+    alertEl.innerHTML=`<div class="alert alert-danger">No podés reducir los litros a menos de ${Math.ceil(litrosUsados).toLocaleString('es-AR')} L (ya consumidos).</div>`; return;
+  }
+
+  // Actualizar litros disponibles proporcionalmente
+  const diferencia = litros - lote.litros_total;
+  lote.litros_total = litros;
+  lote.litros_disp  = Math.max(0, lote.litros_disp + diferencia);
+  lote.fecha        = fecha;
+  lote.precio_litro = precio;
+  lote.proveedor    = proveedor;
+  lote.remito       = remito;
+
+  // Actualizar también el movimiento de entrada
+  if (movIdx !== -1) {
+    cisterna.movimientos[movIdx] = {
+      ...cisterna.movimientos[movIdx],
+      fecha, litros, precio_litro: precio, proveedor, remito
+    };
+  }
+
+  guardarEstado();
+  mostrarToast(`✅ Lote #${loteId} actualizado`, 'ok');
+  cerrarEditarEntrada();
+  renderResumenCisterna();
+  if (document.getElementById('comb-historial-list')) renderHistorial();
 }
 
 // ── ELIMINAR RETIRO ───────────────────────────────────────────────
