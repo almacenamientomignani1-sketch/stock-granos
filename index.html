@@ -1125,6 +1125,9 @@ tr:hover td{background:rgba(0,0,0,0.016)}
           </div>
         </div>
 
+        <!-- Selector de subcuenta / propietario del grano -->
+        <div id="det-subcuenta-selector" style="display:none"></div>
+
         <!-- Filtro campaña -->
         <div id="det-campania-filter-wrap" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
           <span style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Campaña:</span>
@@ -1688,7 +1691,7 @@ let nextBolsonPorCampania = {};
 
 let bolsones = [], movimientos = [], nextBolson = 1, bolsonSeleccionado = null;
 let nextMovId = 1;
-let acopios = {}, ultimaCPE = null, acopioActual = null;
+let acopios = {}, ultimaCPE = null, acopioActual = null, _detSubcuentaActual = null;
 let choferes = {}, choferActual = null, mesActualFletes = null, pctSueldo = 18;
 let camiones = {}, camionActual = null, mesActualCam = null;
 // cisterna: { lotes:[{id,fecha,litros_total,litros_disp,precio_litro,proveedor,remito}], movimientos:[...] }
@@ -1837,6 +1840,11 @@ function parsearTextoCPE(texto) {
   const chofer       = nombreDespuesCUIT('Chofer\\s*:');
   const destino      = nombreDespuesCUIT('Destino\\s*:');
 
+  // ── CUIT del Titular (para distinguir JAM&JAM vs MIGNANI) ─────────
+  let titular_cuit = '', titular_nombre = titular;
+  const mTitCuit = t.match(/Titular\s*(?:Carta\s*de\s*Porte)?\s*:\s*(\d{11})\s*-\s*([^\n]+)/i);
+  if (mTitCuit) { titular_cuit = mTitCuit[1]; titular_nombre = mTitCuit[2].trim(); }
+
   // ── CUIT del Rte. Comercial Venta Primaria (para unificar cuentas de acopio) ──
   let rte_comercial_cuit = '';
   const mRteCuit = t.match(/Rte\.?\s*Comercial\s*Venta\s*Primaria\s*:\s*(\d{11})\s*-/i);
@@ -1910,7 +1918,7 @@ function parsearTextoCPE(texto) {
   }
 
   return {
-    nro_cpe, titular, rte_comercial, rte_comercial_cuit, chofer, grano, campania,
+    nro_cpe, titular, titular_cuit, titular_nombre, rte_comercial, rte_comercial_cuit, chofer, grano, campania,
     peso_bruto_carga, peso_tara_carga, peso_neto_carga,
     peso_bruto_descarga, peso_tara_descarga, peso_neto_descarga,
     fecha_descarga, dominios, destino, procedencia
@@ -3195,7 +3203,9 @@ function registrarEgreso() {
       kg: totalKg,
       dominios: dominios||ultimaCPE.dominios||'',
       chofer: chofer||ultimaCPE.chofer||'',
-      campo, lote: lote||''
+      campo, lote: lote||'',
+      titular_cuit: ultimaCPE.titular_cuit || '',
+      titular_nombre: ultimaCPE.titular_nombre || ''
     });
   }
 
@@ -3990,13 +4000,14 @@ function getCampaniasAcopio(clave) {
   return [...set].sort();
 }
 
-function calcularStatsAcopioCamp(clave, campania) {
-  // campania = null → todas; o string "25/26"
+function calcularStatsAcopioCamp(clave, campania, subcuenta) {
+  // campania = null → todas; subcuenta = null → todas
   let kg_entregado = 0, kg_mermado = 0, kg_liquidado = 0, neto_pagar = 0;
   const a = acopios[clave];
   if (!a) return { kg_entregado:0, kg_mermado:0, kg_liquidado:0, neto_pagar:0, kg_disponible:0 };
   (a.movimientos || []).forEach(m => {
     if (campania && m.campania && m.campania !== campania) return;
+    if (subcuenta && m.titular_cuit && m.titular_cuit !== subcuenta) return;
     if (m.tipo === 'entrega')     kg_entregado  += m.kg || 0;
     if (m.tipo === 'merma')       kg_mermado    += m.kg || 0;
     if (m.tipo === 'liquidacion') { kg_liquidado += m.kg || 0; neto_pagar += m.neto_pagar || 0; }
@@ -4059,6 +4070,7 @@ function renderAcopios() {
 function verDetalleAcopio(clave) {
   acopioActual = clave;
   _detCampaniaActual = null; // reset filtro al abrir
+  _detSubcuentaActual = null; // reset subcuenta al abrir
   document.getElementById('acopio-lista-view').style.display = 'none';
   document.getElementById('acopio-detalle-view').style.display = 'block';
   document.getElementById('acopio-page-sub').textContent = acopios[clave].nombre;
@@ -4094,6 +4106,24 @@ function seleccionarCampaniaDetalle(clave, campania) {
   renderDetalleAcopio(clave);
 }
 
+// Detectar subcuentas (titulares distintos) presentes en los movimientos
+function getSubcuentasAcopio(clave) {
+  const a = acopios[clave];
+  if (!a) return [];
+  const map = {};
+  (a.movimientos || []).forEach(m => {
+    if (m.titular_cuit && m.titular_nombre) {
+      map[m.titular_cuit] = m.titular_nombre;
+    }
+  });
+  return Object.entries(map).map(([cuit, nombre]) => ({ cuit, nombre }));
+}
+
+function seleccionarSubcuenta(clave, cuit) {
+  _detSubcuentaActual = cuit || null;
+  renderDetalleAcopio(clave);
+}
+
 function toggleAcordeon(id) {
   const el      = document.getElementById(id);
   const chevron = document.getElementById(id + '-chevron');
@@ -4107,6 +4137,86 @@ function renderDetalleAcopio(clave) {
   const a = acopios[clave];
   const campanias = getCampaniasAcopio(clave);
   const campFiltro = _detCampaniaActual; // null = todas
+  const subcuentas = getSubcuentasAcopio(clave);
+  const subcuentaFiltro = _detSubcuentaActual; // null = todas
+
+  // ── SELECTOR DE SUBCUENTA (propietario) ──────────────────────────
+  const subcuentaEl = document.getElementById('det-subcuenta-selector');
+  if (subcuentaEl) {
+    if (subcuentas.length > 1) {
+      const btnStyle = (active, color) =>
+        `padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid ${active ? color : 'var(--border2)'};background:${active ? color : 'var(--surface)'};color:${active ? '#fff' : 'var(--text2)'};font-family:var(--sans);transition:all .15s`;
+      const colors = ['#7c3aed', '#0891b2', '#059669', '#d97706']; // violeta, cyan, verde, amber
+      const movsNoOwnerCount = a.movimientos.filter(m => !m.titular_cuit).length;
+      let html = `<div style="margin-bottom:14px;padding:12px 16px;background:linear-gradient(135deg,rgba(124,58,237,0.06),rgba(8,145,178,0.06));border:1px solid rgba(124,58,237,0.2);border-radius:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">👤 Propietario del grano</div>
+          ${movsNoOwnerCount > 0 ? `<button onclick="autoAsignarPropietarios('${clave}')"
+            style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)"
+            title="Asignar propietario automáticamente a ${movsNoOwnerCount} movimiento(s) sin asignar">
+            ⚡ Auto-asignar (${movsNoOwnerCount} sin asignar)
+          </button>` : `<span style="font-size:10px;color:var(--green);font-weight:600">✅ Todos asignados</span>`}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button style="${btnStyle(!subcuentaFiltro,'#374151')}" onclick="seleccionarSubcuenta('${clave}',null)">📊 Todos</button>`;
+      subcuentas.forEach((sc, i) => {
+        const color = colors[i % colors.length];
+        const isActive = subcuentaFiltro === sc.cuit;
+        html += `<button style="${btnStyle(isActive, color)}" onclick="seleccionarSubcuenta('${clave}','${sc.cuit}')">${sc.nombre.split(' ').slice(0,3).join(' ')}</button>`;
+      });
+      html += `</div></div>`;
+
+      // Si hay filtro activo, mostrar resumen comparativo de los dos titulares
+      if (!subcuentaFiltro && subcuentas.length >= 2) {
+        html += `<div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">📊 Resumen por propietario</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">`;
+        const movsNoOwner = a.movimientos.filter(m => !m.titular_cuit);
+        subcuentas.forEach((sc, i) => {
+          const color = colors[i % colors.length];
+          const movsOwner = a.movimientos.filter(m => m.titular_cuit === sc.cuit);
+          const movsNoOwner = a.movimientos.filter(m => !m.titular_cuit); // sin cuit → no asignados aún
+          const kgEnt = movsOwner.filter(m=>m.tipo==='entrega').reduce((s,m)=>s+(m.kg||0),0);
+          const kgMer = movsOwner.filter(m=>m.tipo==='merma').reduce((s,m)=>s+(m.kg||0),0);
+          const kgLiq = movsOwner.filter(m=>m.tipo==='liquidacion').reduce((s,m)=>s+(m.kg||0),0);
+          const kgDisp = kgEnt - kgMer - kgLiq;
+          const neto = movsOwner.filter(m=>m.tipo==='liquidacion').reduce((s,m)=>s+(m.neto_pagar||0),0);
+          const fk = n => n.toLocaleString('es-AR');
+          html += `<div style="border:1.5px solid ${color}22;border-radius:10px;overflow:hidden;background:${color}08">
+            <div style="background:${color}18;padding:8px 12px;border-bottom:1px solid ${color}22">
+              <div style="font-size:12px;font-weight:700;color:${color}">${sc.nombre}</div>
+              <div style="font-size:10px;color:var(--text3)">CUIT: ${sc.cuit}</div>
+            </div>
+            <div style="padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">
+              <span style="color:var(--text3)">Entregado</span><span style="font-weight:600;text-align:right">${fk(kgEnt)} kg</span>
+              <span style="color:var(--amber)">Mermas</span><span style="font-weight:600;text-align:right;color:var(--amber)">${fk(kgMer)} kg</span>
+              <span style="color:var(--blue)">Liquidado</span><span style="font-weight:600;text-align:right;color:var(--blue)">${fk(kgLiq)} kg</span>
+              <span style="color:var(--green);font-weight:700">Disponible</span><span style="font-weight:700;text-align:right;color:${kgDisp>0?'var(--green)':'var(--red)'}">${fk(kgDisp)} kg</span>
+              ${neto > 0 ? `<span style="color:var(--text3)">Neto cobrado</span><span style="font-weight:600;text-align:right">$${fk(Math.round(neto))}</span>` : ''}
+            </div>
+            <div style="padding:4px 12px 8px">
+              <button onclick="seleccionarSubcuenta('${clave}','${sc.cuit}')" style="width:100%;padding:4px;background:${color};color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)">Ver cuenta →</button>
+            </div>
+          </div>`;
+        });
+        // Movimientos sin titular (datos viejos)
+        if (movsNoOwner && movsNoOwner.length) {
+          html += `<div style="border:1.5px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--bg2)">
+            <div style="background:var(--bg3);padding:8px 12px;border-bottom:1px solid var(--border)">
+              <div style="font-size:12px;font-weight:700;color:var(--text3)">⚠️ Sin propietario asignado</div>
+              <div style="font-size:10px;color:var(--text3)">${movsNoOwner.length} movimiento(s) — datos anteriores</div>
+            </div>
+          </div>`;
+        }
+        html += `</div></div>`;
+      }
+      subcuentaEl.innerHTML = html;
+      subcuentaEl.style.display = 'block';
+    } else {
+      subcuentaEl.innerHTML = '';
+      subcuentaEl.style.display = 'none';
+    }
+  }
 
   // Render pills de campaña
   const pillsEl = document.getElementById('det-campania-pills');
@@ -4128,9 +4238,13 @@ function renderDetalleAcopio(clave) {
     badge.textContent = campFiltro ? 'Campaña ' + campFiltro : '';
   }
 
-  const s = calcularStatsAcopioCamp(clave, campFiltro);
+  const s = calcularStatsAcopioCamp(clave, campFiltro, subcuentaFiltro);
+  // Mostrar indicador de subcuenta activa en el nombre
   document.getElementById('det-nombre').textContent = a.nombre;
-  document.getElementById('det-cuit').textContent = a.cuit ? 'CUIT: ' + a.cuit : '';
+  const subcuentaActivaInfo = subcuentaFiltro ? subcuentas.find(sc => sc.cuit === subcuentaFiltro) : null;
+  document.getElementById('det-cuit').textContent = subcuentaActivaInfo
+    ? `👤 ${subcuentaActivaInfo.nombre} · CUIT: ${subcuentaActivaInfo.cuit}`
+    : (a.cuit ? 'CUIT: ' + a.cuit : '');
 
   const fk = n => n.toLocaleString('es-AR');
   const labelCamp = campFiltro ? ` · ${campFiltro}` : '';
@@ -4140,11 +4254,13 @@ function renderDetalleAcopio(clave) {
     <div class="metric-card"><div class="metric-label">Liquidado${labelCamp}</div><div class="metric-value" style="color:var(--blue)">${fk(s.kg_liquidado)}</div><div class="metric-unit">kilogramos</div></div>
     <div class="metric-card"><div class="metric-label">Saldo disponible${labelCamp}</div><div class="metric-value" style="color:var(--green)">${fk(s.kg_disponible)}</div><div class="metric-unit">kg sin liquidar</div></div>`;
 
-  // Filtrar movimientos por campaña
+  // Filtrar movimientos por campaña Y subcuenta
   const todosMovs = [...a.movimientos].sort((a,b)=>a.fecha.localeCompare(b.fecha));
-  const movs = campFiltro
-    ? todosMovs.filter(m => !m.campania || m.campania === campFiltro)
-    : todosMovs;
+  const movs = todosMovs.filter(m => {
+    const campOk = !campFiltro || !m.campania || m.campania === campFiltro;
+    const subcOk = !subcuentaFiltro || m.titular_cuit === subcuentaFiltro;
+    return campOk && subcOk;
+  });
   let saldo = 0;
   const PILL = { entrega:'pill-entrega', merma:'pill-merma', liquidacion:'pill-liquidacion' };
   const LABEL= { entrega:'ENTREGA', merma:'MERMA', liquidacion:'LIQUIDACIÓN' };
@@ -4170,6 +4286,9 @@ function renderDetalleAcopio(clave) {
         const neto= (m.neto_pagar||0).toLocaleString('es-AR',{minimumFractionDigits:2});
         detalle = `Liq. ${m.coe||'—'} · $${pKg}/kg · Neto: $${neto}${m.campania ? ' · <strong>Camp. '+m.campania+'</strong>' : ''}`;
       }
+      // Badge del propietario si hay más de una subcuenta
+      const titularBadge = (m.titular_nombre && !subcuentaFiltro && subcuentas.length > 1)
+        ? `<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:rgba(124,58,237,0.12);color:#7c3aed;font-weight:600;margin-left:4px;vertical-align:middle">${m.titular_nombre.split(' ')[0]}</span>` : '';
       const fd = m.fecha ? m.fecha.split('-').reverse().join('/') : '—';
       const signo = kgMov >= 0 ? '+' : '';
       const sc = saldo > 0 ? 'saldo-positivo' : saldo < 0 ? 'saldo-negativo' : 'saldo-cero';
@@ -4177,10 +4296,16 @@ function renderDetalleAcopio(clave) {
       // El índice real en el array original (movs está ordenado, igual al array)
       const realIdx = a.movimientos.indexOf(m);
       const detallePlano = detalle.replace(/<[^>]+>/g, '');
+      const sinPropietario = !m.titular_cuit && subcuentas.length > 0;
+      const asignarBtn = sinPropietario
+        ? `<button onclick="abrirAsignarPropietario('${clave}',${realIdx})" title="Asignar propietario"
+            style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);cursor:pointer;color:#7c3aed;font-size:11px;padding:2px 7px;border-radius:4px;margin-left:2px;font-family:var(--sans);font-weight:600"
+            onmouseover="this.style.background='#7c3aed';this.style.color='#fff'"
+            onmouseout="this.style.background='rgba(124,58,237,0.1)';this.style.color='#7c3aed'">👤?</button>` : '';
       return `<tr class="${RCLASS[m.tipo]}">
         <td class="num" style="color:var(--text3)">${fd}</td>
         <td><span class="mov-tipo-pill ${PILL[m.tipo]}">${LABEL[m.tipo]}</span></td>
-        <td style="font-size:12px;color:var(--text2);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${detallePlano}">${detalle}</td>
+        <td style="font-size:12px;color:var(--text2);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${detallePlano}">${detalle}${titularBadge}${asignarBtn}</td>
         <td>${GTAG(m.grano)}</td>
         <td class="num" style="font-weight:600;color:${kgColor}">${signo}${fk(Math.abs(kgMov))}</td>
         <td class="num ${sc}">${fk(saldo)}</td>
@@ -4190,7 +4315,9 @@ function renderDetalleAcopio(clave) {
   }
 
   // ── Resumen financiero LIQUIDACIONES: última + acumulado ────────────
-  const liqMovs = a.movimientos.filter(m => m.tipo === 'liquidacion' && (!campFiltro || !m.campania || m.campania === campFiltro));
+  const liqMovs = a.movimientos.filter(m => m.tipo === 'liquidacion'
+    && (!campFiltro || !m.campania || m.campania === campFiltro)
+    && (!subcuentaFiltro || m.titular_cuit === subcuentaFiltro));
   const finEl   = document.getElementById('det-financiero');
   if (liqMovs.length) {
     const sum  = key => liqMovs.reduce((acc, m) => acc + (m[key] || 0), 0);
@@ -4252,7 +4379,8 @@ function renderDetalleAcopio(clave) {
 
   // ── Resumen financiero CERTIFICACIONES: última + acumulado ──────────
   const certMovs   = a.movimientos.filter(m => m.tipo === 'merma' && (m.total_servicios > 0 || m.kg_bruto > 0)
-    && (!campFiltro || !m.campania || m.campania === campFiltro));
+    && (!campFiltro || !m.campania || m.campania === campFiltro)
+    && (!subcuentaFiltro || m.titular_cuit === subcuentaFiltro));
   const certFinEl  = document.getElementById('det-financiero-cert');
   if (certMovs.length) {
     const $fc   = n => '$' + Math.abs(n).toLocaleString('es-AR', {minimumFractionDigits:2});
@@ -4580,6 +4708,8 @@ async function _aplicarPDFGlobal(tipo, datos, clave) {
       pago_condiciones: datos.pago_condiciones || 0,
       comision:         datos.comision         || 0,
       comision_pct:     datos.comision_pct     || 0,
+      titular_cuit:     datos.vendedor_cuit    || '',
+      titular_nombre:   datos.vendedor_nombre  || '',
     });
   } else {
     const a = acopios[clave];
@@ -4599,6 +4729,8 @@ async function _aplicarPDFGlobal(tipo, datos, clave) {
       gastos_generales: datos.gastos_generales || 0,
       importe_iva:      datos.importe_iva      || 0,
       ctgs: datos.ctgs || [],
+      titular_cuit:   datos.vendedor_cuit  || '',
+      titular_nombre: datos.vendedor_nombre|| '',
     });
   }
   guardarEstado();
@@ -4646,6 +4778,15 @@ function parsearLiquidacion(texto) {
   }
   const todosCuits = [...t.matchAll(/C\.U\.I\.T\.:\s*(\d{11})/gi)];
   if (todosCuits.length >= 1) d.acopio_cuit = todosCuits[0][1];
+
+  // ── VENDEDOR (propietario real del grano) ─────────────────────────
+  // La SEGUNDA Razón Social es el vendedor, el SEGUNDO CUIT es el vendedor
+  if (todasRazones.length >= 2) {
+    d.vendedor_nombre = todasRazones[1][1]
+      .replace(/\s*(Domicilio:|Localidad:|C\.U\.I\.T\.|I\.V\.A\.|Ingresos|CERTIFICACI[OÓ]N|DEPOSITANTE|DEPOSITARIO|COOP\.)[\s\S]*/i, '')
+      .replace(/\n/g,' ').trim();
+  }
+  if (todosCuits.length >= 2) d.vendedor_cuit = todosCuits[1][1];
 
   // Fecha de la operación
   m = t.match(/Fecha:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
@@ -4810,6 +4951,15 @@ function parsearCertificacion(texto) {
   }
   const todosCuits = [...t.matchAll(/C\.U\.I\.T\.:\s*(\d{11})/gi)];
   if (todosCuits.length >= 1) d.acopio_cuit = todosCuits[0][1];
+
+  // ── DEPOSITANTE (propietario real del grano) ─────────────────────
+  // La SEGUNDA Razón Social es el depositante, el SEGUNDO CUIT es el depositante
+  if (todasRazones.length >= 2) {
+    d.vendedor_nombre = todasRazones[1][1]
+      .replace(/\s*(Domicilio:|Localidad:|C\.U\.I\.T\.|I\.V\.A\.|Ingresos|CERTIFICACI[OÓ]N|DEPOSITANTE|DEPOSITARIO|COOP\.)[\s\S]*/i, '')
+      .replace(/\n/g,' ').trim();
+  }
+  if (todosCuits.length >= 2) d.vendedor_cuit = todosCuits[1][1];
 
   // ── PESOS — el valor puede aparecer ANTES o DESPUÉS del label en pdfjs ─
   // Caso normal: "Peso Bruto: 87,960.00"
@@ -7039,7 +7189,266 @@ function eliminarEquipo(categoria, idx) {
   renderListaEquiposModal(categoria);
 }
 
-// ── ELIMINAR ENTRADA ──────────────────────────────────────────────
+// ── ASIGNACIÓN DE PROPIETARIO A MOVIMIENTOS HISTÓRICOS ───────────
+
+// CUITs conocidos del sistema
+const CUITS_CONOCIDOS = {
+  '20184558131': 'MIGNANI JAVIER ANGEL',
+  '30712073817': 'JAM & JAM S.A.',
+};
+// Patrones de nombre para reconocimiento automático en el texto del movimiento
+const PATRONES_TITULAR = [
+  { cuit: '20184558131', nombre: 'MIGNANI JAVIER ANGEL',
+    patron: /mignani|javier\s*angel/i },
+  { cuit: '30712073817', nombre: 'JAM & JAM S.A.',
+    patron: /jam\s*&?\s*jam|30712073817/i },
+];
+
+function _inferirTitularDeMov(m) {
+  // Intentar reconocer el titular desde el texto del movimiento
+  const texto = [m.nro_cpe||'', m.detalle||'', m.campo||'', m.chofer||'', m.coe||''].join(' ');
+  for (const p of PATRONES_TITULAR) {
+    if (p.patron.test(texto)) return { cuit: p.cuit, nombre: p.nombre };
+  }
+  return null;
+}
+
+function autoAsignarPropietarios(clave) {
+  const a = acopios[clave];
+  if (!a) return;
+  const subcuentas = getSubcuentasAcopio(clave);
+  if (!subcuentas.length) {
+    mostrarToast('⚠️ No hay propietarios conocidos para asignar. Asigná uno manualmente primero.', 'warn');
+    return;
+  }
+
+  // Si solo hay UN propietario conocido en la cuenta, asignar todos los sin-titular a ese
+  const sinTitular = a.movimientos.filter(m => !m.titular_cuit);
+  if (!sinTitular.length) {
+    mostrarToast('✅ Todos los movimientos ya tienen propietario asignado', 'ok');
+    return;
+  }
+
+  // Mostrar modal de confirmación con preview
+  const modal = document.createElement('div');
+  modal.id = 'modal-autoasignar';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+
+  const colors = ['#7c3aed','#0891b2','#059669','#d97706'];
+
+  // Intentar inferir para cada movimiento
+  const inferidos = sinTitular.map(m => ({ mov: m, infer: _inferirTitularDeMov(m) }));
+  const conInfer  = inferidos.filter(x => x.infer);
+  const sinInfer  = inferidos.filter(x => !x.infer);
+
+  const opcionesHtml = subcuentas.map((sc, i) =>
+    `<option value="${sc.cuit}">${sc.nombre}</option>`
+  ).join('');
+
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--radius-lg);padding:24px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:700">⚡ Auto-asignar propietarios</div>
+        <button onclick="document.getElementById('modal-autoasignar').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+      </div>
+
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">
+        Hay <strong>${sinTitular.length}</strong> movimiento(s) sin propietario asignado.
+        ${conInfer.length > 0 ? `El sistema reconoció automáticamente <strong style="color:var(--green)">${conInfer.length}</strong> de ellos.` : ''}
+      </div>
+
+      ${sinInfer.length > 0 ? `
+      <div style="background:var(--amber-bg,#fef3c7);border:1px solid #FCD34D;border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px">
+        <div style="font-weight:700;color:var(--amber,#92400e);margin-bottom:6px">
+          ⚠️ ${sinInfer.length} movimiento(s) no reconocidos — asignación masiva
+        </div>
+        <div style="color:var(--text2);margin-bottom:8px">Asignar todos los no reconocidos a:</div>
+        <select id="autoasig-fallback" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text)">
+          <option value="">— No asignar —</option>
+          ${opcionesHtml}
+        </select>
+      </div>` : ''}
+
+      ${conInfer.length > 0 ? `
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">✅ Reconocidos automáticamente</div>
+        <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+          ${conInfer.slice(0,8).map(x => {
+            const fd = x.mov.fecha ? x.mov.fecha.split('-').reverse().join('/') : '—';
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border);font-size:12px">
+              <span style="color:var(--text2)">${fd} · <strong>${x.mov.tipo}</strong> · ${x.mov.kg?.toLocaleString('es-AR')||0} kg</span>
+              <span style="padding:2px 8px;border-radius:10px;background:#7c3aed18;color:#7c3aed;font-weight:600;font-size:11px">${x.infer.nombre.split(' ').slice(0,2).join(' ')}</span>
+            </div>`;
+          }).join('')}
+          ${conInfer.length > 8 ? `<div style="padding:6px 12px;font-size:11px;color:var(--text3)">... y ${conInfer.length - 8} más</div>` : ''}
+        </div>
+      </div>` : ''}
+
+      <div id="autoasig-alert" style="margin-bottom:10px"></div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="document.getElementById('modal-autoasignar').remove()"
+          style="padding:8px 20px;background:none;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--sans)">Cancelar</button>
+        <button onclick="confirmarAutoAsignar('${clave}')"
+          style="padding:8px 22px;background:#7c3aed;color:#fff;border:none;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">⚡ Aplicar asignación</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+function confirmarAutoAsignar(clave) {
+  const a = acopios[clave];
+  const fallbackCuit = (document.getElementById('autoasig-fallback') || {}).value || '';
+  const fallbackNombre = fallbackCuit ? (CUITS_CONOCIDOS[fallbackCuit] || getSubcuentasAcopio(clave).find(s=>s.cuit===fallbackCuit)?.nombre || '') : '';
+
+  let asignados = 0;
+  a.movimientos.forEach(m => {
+    if (m.titular_cuit) return; // ya tiene
+    const infer = _inferirTitularDeMov(m);
+    if (infer) {
+      m.titular_cuit   = infer.cuit;
+      m.titular_nombre = infer.nombre;
+      asignados++;
+    } else if (fallbackCuit) {
+      m.titular_cuit   = fallbackCuit;
+      m.titular_nombre = fallbackNombre;
+      asignados++;
+    }
+  });
+
+  guardarEstado();
+  document.getElementById('modal-autoasignar').remove();
+  mostrarToast(`✅ ${asignados} movimiento(s) asignados`, 'ok');
+  renderDetalleAcopio(clave);
+}
+
+// ── ASIGNACIÓN MANUAL INDIVIDUAL ─────────────────────────────────
+function abrirAsignarPropietario(clave, idx) {
+  const a = acopios[clave];
+  const m = a.movimientos[idx];
+  if (!m) return;
+  const subcuentas = getSubcuentasAcopio(clave);
+
+  // Si no hay subcuentas conocidas aún, permitir ingreso libre
+  const fd = m.fecha ? m.fecha.split('-').reverse().join('/') : '—';
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-asignar-prop';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+
+  // Juntar subcuentas conocidas + CUITs del sistema
+  const opcionesMap = {};
+  subcuentas.forEach(sc => { opcionesMap[sc.cuit] = sc.nombre; });
+  Object.entries(CUITS_CONOCIDOS).forEach(([cuit, nombre]) => { opcionesMap[cuit] = nombre; });
+  const opciones = Object.entries(opcionesMap);
+
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--radius-lg);padding:24px;max-width:440px;width:100%">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:700">👤 Asignar propietario</div>
+        <button onclick="document.getElementById('modal-asignar-prop').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+      </div>
+
+      <div style="background:var(--bg2);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--text2)">
+        <div style="font-weight:600;margin-bottom:4px">${fd} · ${m.tipo?.toUpperCase()} · ${(m.kg||0).toLocaleString('es-AR')} kg</div>
+        <div style="color:var(--text3)">${m.nro_cpe ? 'CPE ' + m.nro_cpe : m.coe ? 'COE ' + m.coe : '—'}</div>
+      </div>
+
+      <div class="config-field" style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">Propietario del grano</label>
+        <select id="asig-prop-select" onchange="asigPropSelectChange()" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text)">
+          <option value="">— Seleccioná —</option>
+          ${opciones.map(([cuit, nombre]) =>
+            `<option value="${cuit}">${nombre}</option>`
+          ).join('')}
+          <option value="__custom__">✏️ Escribir manualmente...</option>
+        </select>
+      </div>
+
+      <div id="asig-prop-custom-wrap" style="display:none;margin-bottom:12px">
+        <div class="config-field">
+          <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">CUIT</label>
+          <input type="text" id="asig-prop-cuit" maxlength="11" placeholder="11 dígitos sin guiones"
+            style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);margin-bottom:8px">
+          <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Nombre / Razón Social</label>
+          <input type="text" id="asig-prop-nombre" placeholder="Ej: MIGNANI JAVIER ANGEL"
+            style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);cursor:pointer">
+          <input type="checkbox" id="asig-aplicar-similares" checked style="width:14px;height:14px;accent-color:#7c3aed">
+          Aplicar a todos los movimientos sin propietario de esta cuenta
+        </label>
+      </div>
+
+      <div id="asig-prop-alert" style="margin-bottom:10px"></div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="document.getElementById('modal-asignar-prop').remove()"
+          style="padding:8px 20px;background:none;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--sans)">Cancelar</button>
+        <button onclick="confirmarAsignarPropietario('${clave}',${idx})"
+          style="padding:8px 22px;background:#7c3aed;color:#fff;border:none;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">✅ Asignar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+function asigPropSelectChange() {
+  const val = document.getElementById('asig-prop-select').value;
+  const wrap = document.getElementById('asig-prop-custom-wrap');
+  if (wrap) wrap.style.display = val === '__custom__' ? 'block' : 'none';
+}
+
+function confirmarAsignarPropietario(clave, idx) {
+  const a = acopios[clave];
+  const m = a.movimientos[idx];
+  if (!m) return;
+  const alertEl = document.getElementById('asig-prop-alert');
+
+  const sel = document.getElementById('asig-prop-select').value;
+  let cuit = '', nombre = '';
+
+  if (sel === '__custom__') {
+    cuit   = (document.getElementById('asig-prop-cuit').value || '').replace(/\D/g,'');
+    nombre = (document.getElementById('asig-prop-nombre').value || '').trim().toUpperCase();
+    if (!cuit || cuit.length !== 11) { alertEl.innerHTML='<div class="alert alert-danger">CUIT debe tener 11 dígitos.</div>'; return; }
+    if (!nombre) { alertEl.innerHTML='<div class="alert alert-danger">Ingresá el nombre.</div>'; return; }
+  } else if (sel) {
+    cuit   = sel;
+    const opcionesMap = {};
+    getSubcuentasAcopio(clave).forEach(sc => { opcionesMap[sc.cuit] = sc.nombre; });
+    Object.entries(CUITS_CONOCIDOS).forEach(([c, n]) => { opcionesMap[c] = n; });
+    nombre = opcionesMap[sel] || '';
+  } else {
+    alertEl.innerHTML='<div class="alert alert-danger">Seleccioná un propietario.</div>'; return;
+  }
+
+  const aplicarATodos = document.getElementById('asig-aplicar-similares').checked;
+  let asignados = 1;
+  m.titular_cuit   = cuit;
+  m.titular_nombre = nombre;
+
+  if (aplicarATodos) {
+    a.movimientos.forEach((mv, i) => {
+      if (i !== idx && !mv.titular_cuit) {
+        mv.titular_cuit   = cuit;
+        mv.titular_nombre = nombre;
+        asignados++;
+      }
+    });
+  }
+
+  guardarEstado();
+  document.getElementById('modal-asignar-prop').remove();
+  mostrarToast(`✅ ${asignados} movimiento(s) asignados a ${nombre.split(' ').slice(0,2).join(' ')}`, 'ok');
+  renderDetalleAcopio(clave);
+}
+
+
 function eliminarEntrada(loteId) {
   const lote = cisterna.lotes.find(l => l.id === loteId);
   if (!lote) return;
