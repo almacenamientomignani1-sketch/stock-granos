@@ -4112,6 +4112,10 @@ function registrarEgreso() {
   if (!_egrBolsones.length) {
     alertEl.innerHTML = '<div class="alert alert-danger">Agregá al menos un bolsón de origen.</div>'; return;
   }
+
+  // Asegurar que los kg son números (pueden venir como string desde el input)
+  _egrBolsones.forEach(x => { x.kg = parseFloat(x.kg) || 0; });
+
   const bolsonesConKg = _egrBolsones.filter(x => x.kg > 0);
   if (!bolsonesConKg.length) {
     alertEl.innerHTML = '<div class="alert alert-danger">Ingresá los kilos para cada bolsón seleccionado.</div>'; return;
@@ -4120,17 +4124,35 @@ function registrarEgreso() {
   // Obtener inquilino, campo, lote y grano desde el primer bolsón seleccionado
   const primerB  = bolsones.find(x => x.id === bolsonesConKg[0].id) || {};
   const inquilino= primerB.inquilino || '';
-  const campo    = primerB.campo     || '';
+  const campo    = primerB.campo     || primerB.ubicacion || '';
   const lote     = _lotesLabel(primerB.lotes) || primerB.lote || '';
   const grano    = primerB.grano     || '';
+
+  // Calcular stock disponible robusto — soporta bolsones con/sin campo ingresado/egresado
+  function _stockDisponible(b) {
+    // Método 1: campo directo
+    if (typeof b.ingresado === 'number' && typeof b.egresado === 'number') {
+      return b.ingresado - b.egresado;
+    }
+    // Método 2: calcular desde movimientos
+    const ing = movimientos.filter(m => m.bolsonId === b.id && m.tipo === 'ingreso').reduce((s,m) => s + (m.kg||0), 0);
+    const egr = movimientos.filter(m => (m.bolsonId === b.id || (m.bolsonIds||[]).some(x => x.id === b.id)) && m.tipo === 'egreso').reduce((s,m) => {
+      if (m.bolsonIds) { const x = m.bolsonIds.find(x => x.id === b.id); return s + (x ? x.kg : 0); }
+      return s + (m.kg||0);
+    }, 0);
+    return ing - egr;
+  }
 
   // Validar stock en cada bolsón
   for (const item of bolsonesConKg) {
     const b = bolsones.find(x => x.id === item.id);
-    if (!b) { alertEl.innerHTML = `<div class="alert alert-danger">Bolsón #${item.id} no encontrado.</div>`; return; }
-    const stock = b.ingresado - b.egresado;
-    if (item.kg > stock) {
-      alertEl.innerHTML = `<div class="alert alert-danger">Stock insuficiente en Bolsón #${b.id}. Disponible: ${stock.toLocaleString('es-AR')} kg, intentás egresar: ${item.kg.toLocaleString('es-AR')} kg.</div>`; return;
+    if (!b) { alertEl.innerHTML = `<div class="alert alert-danger">Bolsón #${item.id} no encontrado en el sistema.</div>`; return; }
+    const stock = _stockDisponible(b);
+    if (isNaN(stock) || stock < 0) {
+      // Stock no calculable — permitir el egreso con advertencia
+      console.warn('Stock no calculable para bolsón', b.id, '— permitiendo egreso');
+    } else if (item.kg > stock + 1) { // +1 para tolerancia de redondeo
+      alertEl.innerHTML = `<div class="alert alert-danger">Stock insuficiente en Bolsón #${b.id}. Disponible: ${Math.max(0,stock).toLocaleString('es-AR')} kg, intentás egresar: ${item.kg.toLocaleString('es-AR')} kg.</div>`; return;
     }
   }
 
@@ -4140,9 +4162,15 @@ function registrarEgreso() {
     ? `Bolsón #${bolsonIds[0]}`
     : 'Bolsones #' + bolsonIds.join(', #');
 
-  // Descontar stock de cada bolsón
+  // Descontar stock de cada bolsón — inicializar egresado si no existe
   bolsonesConKg.forEach(item => {
     const b = bolsones.find(x => x.id === item.id);
+    if (!b) return;
+    if (typeof b.ingresado !== 'number') {
+      // Recalcular ingresado desde movimientos para bolsones de año anterior
+      b.ingresado = movimientos.filter(m => m.bolsonId === b.id && m.tipo === 'ingreso').reduce((s,m) => s + (m.kg||0), 0);
+    }
+    if (typeof b.egresado !== 'number') b.egresado = 0;
     b.egresado += item.kg;
   });
 
