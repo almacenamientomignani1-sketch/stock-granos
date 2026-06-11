@@ -49,13 +49,13 @@ function verificarPassword() {
 
   // ▼▼▼ CREDENCIALES DEL PROYECTO — NO MODIFICAR ▼▼▼
   const firebaseConfig = {
-  apiKey: "AIzaSyCaXNoQuJZskL4wvCji98njGXQsqmuUQ6o",
-  authDomain: "stockgranos-8de0f.firebaseapp.com",
-  databaseURL: "https://stockgranos-8de0f-default-rtdb.firebaseio.com",
-  projectId: "stockgranos-8de0f",
-  storageBucket: "stockgranos-8de0f.firebasestorage.app",
-  messagingSenderId: "718959653233",
-  appId: "1:718959653233:web:9bc9e555a38abdc309c6d0"
+    apiKey:            "AIzaSyCaXNoQuJZskL4wvCji98njGXQsqmuUQ6o",
+    authDomain:        "stockgranos-8de0f.firebaseapp.com",
+    databaseURL:       "https://stockgranos-8de0f-default-rtdb.firebaseio.com",
+    projectId:         "stockgranos-8de0f",
+    storageBucket:     "stockgranos-8de0f.firebasestorage.app",
+    messagingSenderId: "718959653233",
+    appId:             "1:718959653233:web:9bc9e555a38abdc309c6d0"
   };
   // ▲▲▲ FIN CREDENCIALES ▲▲▲
 
@@ -2206,36 +2206,11 @@ const _origRegistrarRetiro  = typeof registrarRetiro  !== 'undefined' ? registra
 const _origImportarJSON     = typeof importarJSON     !== 'undefined' ? importarJSON     : null;
 const _origConfirmarCerrarCampaña = typeof confirmarCerrarCampaña !== 'undefined' ? confirmarCerrarCampaña : null;
 
-function registrarIngreso() {
-  if (!_checkPermiso('escribir')) return;
-  if (_origRegistrarIngreso) {
-    _origRegistrarIngreso();
-    _audit('registrar', 'Ingreso registrado');
-  }
-}
-function registrarEgreso() {
-  if (!_checkPermiso('escribir')) return;
-  if (_origRegistrarEgreso) {
-    _origRegistrarEgreso();
-    _audit('registrar', 'Egreso por CPE registrado');
-  }
-}
-function registrarRetiro() {
-  if (!_checkPermiso('escribir')) return;
-  if (_origRegistrarRetiro) {
-    _origRegistrarRetiro();
-  }
-}
-function importarJSON(input) {
-  if (!_checkPermiso('admin')) return;
-  _audit('sistema', 'Importación de backup JSON');
-  if (_origImportarJSON) _origImportarJSON(input);
-}
-function confirmarCerrarCampaña() {
-  if (!_checkPermiso('admin')) return;
-  _audit('sistema', 'Cierre de campaña ' + _labelCampaña(_campañaActual));
-  if (_origConfirmarCerrarCampaña) _origConfirmarCerrarCampaña();
-}
+// registrarIngreso wrapper removed — permission check added directly in the function
+// registrarEgreso wrapper removed — permission check added directly in the function
+// registrarRetiro wrapper removed — permission check added directly in the function
+// importarJSON wrapper removed — permission check added directly in the function
+// confirmarCerrarCampaña wrapper removed — permission check added directly in the function
 
 // ── INDEXEDDB (Dexie.js) — Cache offline sin límite de 5MB ─────────
 let _db = null;
@@ -3394,6 +3369,7 @@ function renderEgrBolsonesSeleccionados() {
 
 // ─── OPERACIONES ─────────────────────────────────────────────────
 function registrarIngreso() {
+  if (typeof _checkPermiso === 'function' && !_checkPermiso('escribir')) return;
   const inquilino = document.getElementById('ing-inquilino').value;
   const grano     = document.getElementById('ing-grano').value;
   const cosecha   = document.getElementById('ing-cosecha').value.trim();
@@ -4124,6 +4100,8 @@ function cerrarCargasModal(e) {
 }
 
 function registrarEgreso() {
+  if (typeof _checkPermiso === 'function' && !_checkPermiso('escribir')) return;
+
   const nro      = (document.getElementById('egr-nro')      || {}).value || '';
   const fecha    = (document.getElementById('egr-fecha')    || {}).value || '';
   const chofer   = (document.getElementById('egr-chofer')   || {}).value || '';
@@ -4214,6 +4192,7 @@ function registrarEgreso() {
   _egrBolsones = [];
 
   guardarEstado();
+  if (typeof _audit === 'function') _audit('registrar', 'Egreso por CPE: ' + (nro||'s/n') + ' · ' + totalKg.toLocaleString('es-AR') + ' kg · ' + grano);
   alertEl.innerHTML = `<div class="alert alert-success">✅ Egreso registrado: ${totalKg.toLocaleString('es-AR')} kg de ${grano} — ${bolsonRef} · CPE ${nro||'s/n'}</div>`;
   bolsonSeleccionado = null;
   actualizarBolsones();
@@ -7505,6 +7484,7 @@ function getLitrosRetiro() {
 }
 
 function registrarRetiro() {
+  if (typeof _checkPermiso === 'function' && !_checkPermiso('escribir')) return;
   const litros    = getLitrosRetiro();
   const fecha     = document.getElementById('ret-fecha').value;
   const actRaw    = document.getElementById('ret-actividad').value;
@@ -8076,6 +8056,7 @@ function abrirCerrarCampaña() {
 }
 
 function confirmarCerrarCampaña() {
+  if (typeof _checkPermiso === 'function' && !_checkPermiso('admin')) return;
   const inp = document.getElementById('nueva-campaña-input');
   const alertEl = document.getElementById('cerrar-campaña-alert');
   const nuevaKey = (inp ? inp.value.trim() : '');
@@ -8280,6 +8261,7 @@ function exportarJSONCompleto() {
 
 // ── JSON — Importar backup ────────────────────────────────────────
 function importarJSON(input) {
+  if (typeof _checkPermiso === 'function' && !_checkPermiso('admin')) return;
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
